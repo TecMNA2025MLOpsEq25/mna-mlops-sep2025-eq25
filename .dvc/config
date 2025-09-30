@@ -1,4 +1,4 @@
 [core]
     remote = storage
 ['remote "storage"']
-    url = gdrive://1nG_9rWBqU62ydI0ISfYiAr1ahL_Vw4tz
+    url = azure://dvc-data-remote
