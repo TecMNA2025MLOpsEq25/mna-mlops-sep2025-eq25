@@ -53,29 +53,29 @@ stages:
       size: 288746
     - path: src/scripts/03_preprocessing.py
       hash: md5
-      md5: 29aba7eb67031aa3eae90caabdc088f0
-      size: 2894
+      md5: 8a7b1a838890c7965e174e49f38ce8fe
+      size: 3603
     outs:
     - path: data/prepared/test_preprocessed.csv
       hash: md5
-      md5: 7a8ac2d04a2829a05503327b1af62be1
-      size: 137271
+      md5: 36242bc424b8967c9ac8dbc8fad00f87
+      size: 14322996
     - path: data/prepared/train_preprocessed.csv
       hash: md5
-      md5: 1d7a4794da4048c0fc96979eb63f8cbe
-      size: 667707
+      md5: 8ac99681e228e12f867a067ad1647ab2
+      size: 57069540
     - path: data/prepared/y_test.csv
       hash: md5
-      md5: ae0e5a48d1fb3a98e5d471acf1662886
-      size: 7319
+      md5: a1258e2aea0874661a69fdd9ce8c40e6
+      size: 7299
     - path: data/prepared/y_train.csv
       hash: md5
-      md5: 6aaf1430aa88082d1d7dbb775c47933d
-      size: 29389
+      md5: 5c3857dfd6977d5eef6bea6aff66502a
+      size: 29357
     - path: models/preprocessor.joblib
       hash: md5
-      md5: 72292fa4582fd4cead49e708bf0d1922
-      size: 95881
+      md5: 35bc3c66864756aa7af289cd99b767f7
+      size: 94808
   training:
     cmd: python src/scripts/04_training.py --x_train 
       data/prepared/train_preprocessed.csv --x_test 
@@ -85,20 +85,20 @@ stages:
     deps:
     - path: data/prepared/test_preprocessed.csv
       hash: md5
-      md5: 7a8ac2d04a2829a05503327b1af62be1
-      size: 137271
+      md5: 36242bc424b8967c9ac8dbc8fad00f87
+      size: 14322996
     - path: data/prepared/train_preprocessed.csv
       hash: md5
-      md5: 1d7a4794da4048c0fc96979eb63f8cbe
-      size: 667707
+      md5: 8ac99681e228e12f867a067ad1647ab2
+      size: 57069540
     - path: data/prepared/y_test.csv
       hash: md5
-      md5: ae0e5a48d1fb3a98e5d471acf1662886
-      size: 7319
+      md5: a1258e2aea0874661a69fdd9ce8c40e6
+      size: 7299
     - path: data/prepared/y_train.csv
       hash: md5
-      md5: 6aaf1430aa88082d1d7dbb775c47933d
-      size: 29389
+      md5: 5c3857dfd6977d5eef6bea6aff66502a
+      size: 29357
     - path: src/scripts/04_training.py
       hash: md5
       md5: 8edede05664c8af2254af48a07652108
@@ -106,14 +106,14 @@ stages:
     outs:
     - path: models/best_model.pkl
       hash: md5
-      md5: cc14e5356cd6d38e8f713cd3845235a2
-      size: 139697
+      md5: 01aca5a93dfd5c9a2db353b800e3f4ae
+      size: 61607137
     - path: reports/figures_training
       hash: md5
-      md5: a17fc2492bfc9e3772204e3b44df4f56.dir
-      size: 43070
+      md5: 00b26189bb6e2d2e7dee8280ea320140.dir
+      size: 52734
       nfiles: 1
     - path: reports/metrics.json
       hash: md5
-      md5: 0e4206f0f96110b2ed28b6cee8cb890f
-      size: 175
+      md5: a9ebccbef4072e67b06692debb10b17b
+      size: 173
