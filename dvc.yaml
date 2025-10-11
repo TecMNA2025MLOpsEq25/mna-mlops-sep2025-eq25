@@ -29,4 +29,6 @@ stages:
     outs:
     - data/prepared/test_preprocessed.csv
     - data/prepared/train_preprocessed.csv
+    - data/prepared/y_test.csv
+    - data/prepared/y_train.csv
     - models/preprocessor.joblib

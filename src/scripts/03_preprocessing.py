@@ -54,6 +54,15 @@ def main():
     pd.DataFrame(X_train_prep).to_csv(args.output_train, index=False)
     pd.DataFrame(X_test_prep).to_csv(args.output_test, index=False)
 
+    # Guardar etiquetas (y) alineadas con los splits
+    pd.DataFrame(y_train).to_csv(
+    Path(args.output_train).with_name("y_train.csv"), index=False, header=["target"]
+    )
+    pd.DataFrame(y_test).to_csv(
+    Path(args.output_test).with_name("y_test.csv"), index=False, header=["target"]
+    )
+    print("[OK] Etiquetas guardadas → y_train.csv, y_test.csv")
+    
     # Guardar preprocesador
     joblib.dump(preproc, args.model_preproc)
     print(f"[OK] Preprocesador guardado → {args.model_preproc}")
