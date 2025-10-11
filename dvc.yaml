@@ -32,3 +32,21 @@ stages:
     - data/prepared/y_test.csv
     - data/prepared/y_train.csv
     - models/preprocessor.joblib
+  training:
+    cmd: python src/scripts/04_training.py --x_train 
+      data/prepared/train_preprocessed.csv --x_test 
+      data/prepared/test_preprocessed.csv --y_train data/prepared/y_train.csv 
+      --y_test data/prepared/y_test.csv --out_model models/best_model.pkl 
+      --out_metrics reports/metrics.json --out_figdir reports/figures_training
+    deps:
+    - data/prepared/test_preprocessed.csv
+    - data/prepared/train_preprocessed.csv
+    - data/prepared/y_test.csv
+    - data/prepared/y_train.csv
+    - src/scripts/04_training.py
+    outs:
+    - models/best_model.pkl
+    - reports/figures_training
+    metrics:
+    - reports/metrics.json:
+        cache: false
