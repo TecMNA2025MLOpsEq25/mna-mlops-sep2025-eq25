@@ -17,3 +17,16 @@ stages:
     outs:
     - reports/eda_summary.json
     - reports/figures
+  preprocessing:
+    cmd: python src/scripts/03_preprocessing.py --input 
+      data/processed/obesity_estimation_clean.csv --output_train 
+      data/prepared/train_preprocessed.csv --output_test 
+      data/prepared/test_preprocessed.csv --target NObeyesdad --model_preproc 
+      models/preprocessor.joblib
+    deps:
+    - data/processed/obesity_estimation_clean.csv
+    - src/scripts/03_preprocessing.py
+    outs:
+    - data/prepared/test_preprocessed.csv
+    - data/prepared/train_preprocessed.csv
+    - models/preprocessor.joblib

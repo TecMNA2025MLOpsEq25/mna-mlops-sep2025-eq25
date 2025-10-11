@@ -40,3 +40,31 @@ stages:
       md5: df81a1955972059921ea94e1c0d92ccb.dir
       size: 610562
       nfiles: 19
+  preprocessing:
+    cmd: python src/scripts/03_preprocessing.py --input 
+      data/processed/obesity_estimation_clean.csv --output_train 
+      data/prepared/train_preprocessed.csv --output_test 
+      data/prepared/test_preprocessed.csv --target NObeyesdad --model_preproc 
+      models/preprocessor.joblib
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: eb5471c9d62cddc9e3b343d56bdc95cb
+      size: 288746
+    - path: src/scripts/03_preprocessing.py
+      hash: md5
+      md5: 068066fdafe0740308d76f650586be6a
+      size: 2523
+    outs:
+    - path: data/prepared/test_preprocessed.csv
+      hash: md5
+      md5: 7a8ac2d04a2829a05503327b1af62be1
+      size: 137271
+    - path: data/prepared/train_preprocessed.csv
+      hash: md5
+      md5: 1d7a4794da4048c0fc96979eb63f8cbe
+      size: 667707
+    - path: models/preprocessor.joblib
+      hash: md5
+      md5: 72292fa4582fd4cead49e708bf0d1922
+      size: 95881
