@@ -8,3 +8,12 @@ stages:
     - src/scripts/01_cleaning.py
     outs:
     - data/processed/obesity_estimation_clean.csv
+  eda:
+    cmd: python src/scripts/02_eda.py --input 
+      data/processed/obesity_estimation_clean.csv --outdir reports
+    deps:
+    - data/processed/obesity_estimation_clean.csv
+    - src/scripts/02_eda.py
+    outs:
+    - reports/eda_summary.json
+    - reports/figures

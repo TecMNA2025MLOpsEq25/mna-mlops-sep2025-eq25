@@ -18,3 +18,25 @@ stages:
       hash: md5
       md5: eb5471c9d62cddc9e3b343d56bdc95cb
       size: 288746
+  eda:
+    cmd: python src/scripts/02_eda.py --input 
+      data/processed/obesity_estimation_clean.csv --outdir reports
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: eb5471c9d62cddc9e3b343d56bdc95cb
+      size: 288746
+    - path: src/scripts/02_eda.py
+      hash: md5
+      md5: c3ee01bbf058f28bdd5261787c3df0f0
+      size: 3466
+    outs:
+    - path: reports/eda_summary.json
+      hash: md5
+      md5: d9fdb07c2d8aa374a0cf6644a7b20e6c
+      size: 1607
+    - path: reports/figures
+      hash: md5
+      md5: df81a1955972059921ea94e1c0d92ccb.dir
+      size: 610562
+      nfiles: 19
