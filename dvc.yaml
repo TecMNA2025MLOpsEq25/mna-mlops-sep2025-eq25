@@ -1,0 +1,10 @@
+stages:
+  prepare:
+    cmd: python src/scripts/01_cleaning.py --input 
+      data/raw/obesity_estimation_modified.csv --output 
+      data/processed/obesity_estimation_clean.csv
+    deps:
+    - data/raw/obesity_estimation_modified.csv
+    - src/scripts/01_cleaning.py
+    outs:
+    - data/processed/obesity_estimation_clean.csv

@@ -1,0 +1,20 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python src/scripts/01_cleaning.py --input 
+      data/raw/obesity_estimation_modified.csv --output 
+      data/processed/obesity_estimation_clean.csv
+    deps:
+    - path: data/raw/obesity_estimation_modified.csv
+      hash: md5
+      md5: a3f3a840683ff115b8853e992200ba97
+      size: 290776
+    - path: src/scripts/01_cleaning.py
+      hash: md5
+      md5: aca2b5ea57f1ea99c2300dd4d9bfd3ce
+      size: 926
+    outs:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: eb5471c9d62cddc9e3b343d56bdc95cb
+      size: 288746
