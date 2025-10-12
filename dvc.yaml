@@ -1,0 +1,39 @@
+stages:
+  prepare:
+    cmd: python src/scripts/01_cleaning.py
+    deps:
+      - data/raw/obesity_estimation_modified.csv
+      - src/scripts/01_cleaning.py
+    outs:
+      - data/processed/obesity_estimation_clean.csv
+
+  eda:
+    cmd: python src/scripts/02_eda_manual.py
+    deps:
+      - data/processed/obesity_estimation_clean.csv
+      - src/scripts/02_eda_manual.py
+    outs:
+      - reports/figures
+
+  preprocessing:
+    cmd: python src/scripts/03_preprocessing.py
+    deps:
+      - data/processed/obesity_estimation_clean.csv
+      - src/scripts/03_preprocessing.py
+    outs:
+      - data/prepared/train_prepared.csv
+      - data/prepared/test_prepared.csv
+      - data/prepared/preprocessor.pkl
+
+  training:
+    cmd: python src/scripts/04_training.py
+    deps:
+      - data/prepared/train_prepared.csv
+      - data/prepared/test_prepared.csv
+      - src/scripts/04_training.py
+    outs:
+      - models/best_model.pkl
+      - reports/confusion_matrix.png
+    metrics:
+      - reports/model_comparison.csv
+      - reports/final_model_comparison.csv
