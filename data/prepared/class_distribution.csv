@@ -1,0 +1,8 @@
+NObeyesdad,Train,Test
+insufficient_weight,0.127,0.127
+normal_weight,0.134,0.133
+overweight_level_i,0.133,0.133
+overweight_level_ii,0.137,0.138
+obesity_type_i,0.176,0.176
+obesity_type_ii,0.141,0.141
+obesity_type_iii,0.153,0.153

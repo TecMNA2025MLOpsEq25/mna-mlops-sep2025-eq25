@@ -1,0 +1,91 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python src/scripts/01_cleaning.py
+    deps:
+    - path: data/raw/obesity_estimation_modified.csv
+      hash: md5
+      md5: a3f3a840683ff115b8853e992200ba97
+      size: 290776
+    - path: src/scripts/01_cleaning.py
+      hash: md5
+      md5: 0377418bb47893c82ab5174f96bef285
+      size: 8808
+    outs:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 471495c875d4fba5f78fd31e631ab939
+      size: 262026
+  eda:
+    cmd: python src/scripts/02_eda_manual.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 471495c875d4fba5f78fd31e631ab939
+      size: 262026
+    - path: src/scripts/02_eda_manual.py
+      hash: md5
+      md5: ac3730aac4389ea8d1ba75f88c81b5d8
+      size: 7313
+    outs:
+    - path: reports/figures
+      hash: md5
+      md5: aaa9814b529677d18a97c7cd368ab4b6.dir
+      size: 3526900
+      nfiles: 32
+  preprocessing:
+    cmd: python src/scripts/03_preprocessing.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 471495c875d4fba5f78fd31e631ab939
+      size: 262026
+    - path: src/scripts/03_preprocessing.py
+      hash: md5
+      md5: f1d5a76638c3eb91b7d2676095d3c3af
+      size: 5677
+    outs:
+    - path: data/prepared/preprocessor.pkl
+      hash: md5
+      md5: 0bd7621b8bedb64c35a3cdd654ae1d66
+      size: 4442
+    - path: data/prepared/test_prepared.csv
+      hash: md5
+      md5: ec6133fa360c795bc3b722b013a98e6d
+      size: 189492
+    - path: data/prepared/train_prepared.csv
+      hash: md5
+      md5: 512dc6824500027a2d312c97e64d319f
+      size: 440837
+  training:
+    cmd: python src/scripts/04_training.py
+    deps:
+    - path: data/prepared/test_prepared.csv
+      hash: md5
+      md5: ec6133fa360c795bc3b722b013a98e6d
+      size: 189492
+    - path: data/prepared/train_prepared.csv
+      hash: md5
+      md5: 512dc6824500027a2d312c97e64d319f
+      size: 440837
+    - path: src/scripts/04_training.py
+      hash: md5
+      md5: 1615a7d576e8ba5b771c66718634e592
+      size: 8837
+    outs:
+    - path: models/best_model.pkl
+      hash: md5
+      md5: b5baf33f948dd5f495a5bff5f7c7fd91
+      size: 5366888
+    - path: reports/confusion_matrix.png
+      hash: md5
+      md5: 2088df8df036db78931e6a9d5925fd06
+      size: 39137
+    - path: reports/final_model_comparison.csv
+      hash: md5
+      md5: 31b90102ce52c091453c2a0a1ca30131
+      size: 751
+    - path: reports/model_comparison.csv
+      hash: md5
+      md5: 7edeefd411b76d61bccf533e00dee32e
+      size: 748
