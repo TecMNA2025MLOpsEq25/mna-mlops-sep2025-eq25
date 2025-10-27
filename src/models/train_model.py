@@ -42,7 +42,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    log_loss, matthews_corrcoef, roc_auc_score, confusion_matrix
+    log_loss, matthews_corrcoef, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 )
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
@@ -115,40 +115,48 @@ def evaluate_model(y_true, y_pred, y_proba=None, average="macro"):
 
 # Función auxiliar para ejecución de modelos en MLflow
 def run_experiment(model, model_name, X_train, X_test, y_train, y_test, params=None):
+    import os
+    from mlflow.models.signature import infer_signature
 
+    mlflow.set_experiment("Fase2-Equipo25")
     with mlflow.start_run(run_name=model_name):
-        # Log de parámetros
-        mlflow.log_param("model_name", model_name)
+        mlflow.sklearn.autolog()
+
+        # Si te pasan hyperparámetros explícitos, aplícalos
         if params:
-            mlflow.log_params(params)
+            model.set_params(**params)
 
         # Entrenamiento
         model.fit(X_train, y_train)
 
-        # Predicciones
+        # Predicción y métricas rápidas
         y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test) if hasattr(model, "predict_proba") else None
+        acc = accuracy_score(y_test, y_pred)
+        mlflow.log_metric("accuracy_custom", float(acc))
 
-        # Evaluación
-        metrics = evaluate_model(y_test, y_pred, y_proba)
-        mlflow.log_metrics(metrics)
+        # Matriz de confusión como artefacto
+        try:
+            cm = confusion_matrix(y_test, y_pred)
+            disp = ConfusionMatrixDisplay(cm)
+            disp.plot()
+            os.makedirs("reports", exist_ok=True)
+            fig_path = f"reports/confusion_matrix_{model_name}.png"
+            plt.tight_layout()
+            plt.savefig(fig_path)
+            plt.close()
+            mlflow.log_artifact(fig_path)
+        except Exception as e:
+            print(f"[WARN] No se registró matriz de confusión: {e}")
 
-        # Registro del modelo
+        # Firma de entrada/salida (opcional, útil para servir el modelo)
         input_example = X_train.head(1)
         signature = infer_signature(X_train, model.predict(X_train))
 
-        mlflow.sklearn.log_model(
-            model,
-            name=model_name,
-            input_example=input_example,
-            signature=signature
-        )
+        # El autolog ya registra el modelo; esto es extra por si lo quieres explícito:
+        # mlflow.sklearn.log_model(model, artifact_path="model", signature=signature, input_example=input_example)
 
-        print(f"\nResultados de {model_name}:")
-        for k, v in metrics.items():
-            print(f"{k:20s}: {v:.4f}")
-
-    return metrics
+        # Devuelve un dict de métricas por compatibilidad con el resto del script
+        return {"accuracy": acc}
 
 
 # ### Modelado
