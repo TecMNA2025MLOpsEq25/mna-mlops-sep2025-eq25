@@ -38,3 +38,12 @@ stages:
     metrics:
       - reports/model_comparison.csv
       - reports/final_model_comparison.csv
+  evaluate:
+    cmd: python src/models/evaluate_model.py
+    deps:
+      - src/models/evaluate_model.py
+      - models/best_model.pkl
+      - data/interim/test_prepared.csv
+    outs:
+      - reports/metrics.json
+      - reports/confusion_matrix_eval.png
