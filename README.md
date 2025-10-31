@@ -81,17 +81,17 @@ El proyecto usa **DVC** para versionar datos y modelos de manera reproducible.
 El flujo de trabajo básico es:
 
 ```bash
-# Copiar el archivo .dvc/config.local
-cp ~/somepath/config.local .dvc/config.local
+# Descargar los datos y artefactos versionados (si hay remoto configurado)
+dvc pull
 
-# Descargar los datos y artefactos versionados
-dvc pull data/raw/obesity_estimation_modified.csv.dvc
-
-# Ejecutar todo el pipeline
+# Ejecutar todo el pipeline (limpieza → preprocesamiento → entrenamiento → evaluación)
 dvc repro
 
-# Ver el estado de los datos
+# Ver el estado de los datos/etapas
 dvc status
+
+# (Opcional) Subir los artefactos generados al remoto de DVC
+dvc push
 ```
 
 Los archivos versionados incluyen:
@@ -130,6 +130,16 @@ dvc repro
 
 DVC ejecutará en orden los scripts definidos en `dvc.yaml`, generando los archivos y métricas correspondientes.
 
+### Seguimiento de experimentos (MLflow)
+
+Este proyecto integra **MLflow autolog** para registrar parámetros, métricas y artefactos durante el entrenamiento.
+
+```bash
+mlflow ui --port 8080
+```
+
+Abre http://127.0.0.1:8080 y revisa los *runs* (comparación de métricas, parámetros y artefactos).
+
 ---
 
 ## Resultados
@@ -141,6 +151,28 @@ Los resultados principales del pipeline se encuentran en:
 - `reports/confusion_matrix.csv`  
 - `reports/confusion_matrix.png`  
 - `reports/figures/` (EDA y análisis exploratorio)
+- `models/best_model.pkl`  *(modelo final entrenado de la Fase 2)*
+- `reports/metrics.json`   *(métricas agregadas de evaluación de la Fase 2)*
+- `docs/img/confusion_matrix_eval.png` *(matriz de confusión de evaluación integrada a documentación)*
+
+---
+
+## 🧩 Fase 2 — Tracking, Evaluación y CI
+
+**Novedades principales:**
+- **Stage `evaluate` en `dvc.yaml`**: genera `reports/metrics.json` (accuracy, precision/recall/f1 macro, roc_auc_ovr) y `reports/confusion_matrix_eval.png`.
+- **MLflow autolog** durante el entrenamiento: registro automático de parámetros, métricas y artefactos; ejecución local con `mlflow ui`.
+- **CI en GitHub Actions**: flujo que intenta `dvc pull` (si hay secretos), ejecuta `dvc repro` cuando es posible o `dvc status` como verificación y publica `reports/` como artifacts del job.
+
+**Evidencias:**
+
+| accuracy | precision_macro | recall_macro | f1_macro | roc_auc_ovr |
+|---------:|----------------:|-------------:|---------:|------------:|
+| (ver `reports/metrics.json`) | | | | |
+
+**Matriz de confusión (evaluación):**
+
+![Confusion Matrix Eval](docs/img/confusion_matrix_eval.png)
 
 ---
 
@@ -149,6 +181,9 @@ Los resultados principales del pipeline se encuentran en:
 - Los archivos grandes y datasets intermedios están controlados por **DVC**, no por Git.  
 - Los archivos auxiliares (EDA, gráficas, resúmenes) pueden mantenerse **solo en local**.  
 - Los `.dvc` antiguos deben eliminarse si su contenido ahora está definido en el `dvc.yaml`.
+
+---
+
 
 ---
 
