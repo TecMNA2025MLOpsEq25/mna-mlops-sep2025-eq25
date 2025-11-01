@@ -13,7 +13,7 @@ stages:
       - data/processed/obesity_estimation_clean.csv
       - obesity_estimator/plots.py
     outs:
-      - reports/figures
+      - reports/figures/eda
 
   preprocessing:
     cmd: PYTHONPATH=. python obesity_estimator/features.py
@@ -27,13 +27,23 @@ stages:
       - data/interim/class_distribution.csv
 
   training:
+    # Entrenamiento con Grid/Random search y comparación de modelos (versión mejorada)
     cmd: PYTHONPATH=. python obesity_estimator/modeling/train.py
     deps:
-      - data/interim/train_prepared.csv
       - obesity_estimator/modeling/train.py
+      - obesity_estimator/config.py
       - obesity_estimator/utils.py
+      - data/prepared/train_prepared.csv
+      - data/prepared/test_prepared.csv
+      - data/prepared/y_train.csv
+      - data/prepared/y_test.csv
     outs:
-      - models/
+      - models/best_model.joblib
+    metrics:
+      - reports/metrics.json
+    plots:
+      # El training guarda su figura en SU PROPIA subcarpeta
+      - reports/figures/training/confusion_matrix.png
 
   evaluation:
     cmd: PYTHONPATH=. python obesity_estimator/modeling/predict.py
