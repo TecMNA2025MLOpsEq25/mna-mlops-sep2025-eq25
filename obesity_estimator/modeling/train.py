@@ -1,102 +1,263 @@
+# -*- coding: utf-8 -*-
 """
-train.py
----------------
-Entrena y ajusta múltiples modelos supervisados, registrando métricas y parámetros en MLflow.
+Entrenamiento con selección automática de hiperparámetros (Grid/Random) y comparación de modelos.
+
+Resumen:
+- Lee datos preprocesados desde data/interim/*.csv
+- Modelos: LogisticRegression, RandomForest, HistGradientBoosting, SVC (RBF)
+- Búsqueda de hiperparámetros AUTO: si el grid de un modelo es grande -> RandomizedSearchCV; si es pequeño -> GridSearchCV
+- Métrica principal: f1_macro (adecuada para desbalance)
+- Artefactos:
+    models/best_model.joblib
+    reports/metrics.json
+    reports/classification_report.csv
+    reports/figures/confusion_matrix.png
+    reports/final_model_comparison.csv
 """
 
+import json
+import warnings
+from pathlib import Path
+from typing import Dict
 
-# ----------------- #
-# --- LIBRERÍAS --- #
-# ----------------- #
-from mlflow.models import infer_signature
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV
-from sklearn.svm import SVC
-from obesity_estimator.config import (
-    RANDOM_STATE, TRAIN_FILEPATH, MODELS_DIR,
-    MLFLOW_TRACKING_URI, EXPERIMENT_NAME
-)
-from obesity_estimator.utils import configure_mlflow
-
-import joblib
-import logging
-import mlflow
-import os
+import numpy as np
 import pandas as pd
+import joblib
+import matplotlib.pyplot as plt
+import joblib
+from joblib import dump
 
+from sklearn.metrics import (
+    f1_score, accuracy_score, precision_score, recall_score,
+    classification_report, confusion_matrix
+)
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, RandomizedSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
+from sklearn.svm import SVC
 
-# ------------------------------- #
-# --- CONFIGURACIÓN Y LOGGING --- #
-# ------------------------------- #
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore")
 
+# =========================
+# Configuración
+# =========================
+CFG = {
+    "paths": {
+        "X_train": "data/interim/train_prepared.csv",
+        "X_test": "data/interim/test_prepared.csv",
+        "reports_dir": "reports",
+        "figures_dir": "reports/figures",
+        "models_dir": "models",
+    },
+    "cv": {"n_splits": 5, "random_state": 42, "shuffle": True},
+    "search": {
+        "mode": "auto",
+        "max_combinations": 250,
+        "n_iter": 40,
+        "scoring": "f1_macro",
+        "n_jobs": -1,
+        "verbose": 1,
+        "per_model": {
+            "logistic_regression": "auto",
+            "random_forest": "auto",
+            "hist_gradient_boosting": "auto",
+            "svc_rbf": "auto"
+        }
+    },
+    "models": {
+        "logistic_regression": True,
+        "random_forest": True,
+        "hist_gradient_boosting": True,
+        "svc_rbf": True
+    },
+    "grids": {
+        "logistic_regression": {
+            "C": [0.5, 1.0, 2.0, 5.0],
+            "penalty": ["l2"],
+            "solver": ["lbfgs"],
+            "max_iter": [200, 400],
+            "class_weight": [None, "balanced"],
+        },
+        "random_forest": {
+            "n_estimators": [300, 600, 1000],
+            "max_depth": [None, 12, 24, 36],
+            "min_samples_split": [2, 5, 10],
+            "min_samples_leaf": [1, 2, 4],
+            "class_weight": [None, "balanced_subsample"],
+        },
+        "hist_gradient_boosting": {
+            "learning_rate": [0.03, 0.05, 0.1],
+            "max_depth": [None, 8, 12],
+            "max_leaf_nodes": [31, 63, 127],
+            "min_samples_leaf": [20, 50, 100],
+            "l2_regularization": [0.0, 0.1, 0.5],
+        },
+        "svc_rbf": {
+            "C": [0.5, 1.0, 2.0, 5.0],
+            "gamma": ["scale", 0.1, 0.01],
+            "probability": [True],
+        },
+    },
+}
 
-# ---------------------------- #
-# --- FUNCIONES AUXILIARES --- #
-# ---------------------------- #
-def train_models(X_train, y_train, scoring="f1_macro"):
-    """Entrena y ajusta varios modelos, devolviendo los mejores por tipo."""
-    models = {
-        "RandomForest": RandomForestClassifier(random_state=RANDOM_STATE),
-        "GradientBoosting": GradientBoostingClassifier(random_state=RANDOM_STATE),
-        "LogisticRegression": LogisticRegression(max_iter=500, solver="saga", random_state=RANDOM_STATE),
-        "SVC": SVC(probability=True, random_state=RANDOM_STATE)
-    }
+# =========================
+# Utilidades
+# =========================
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
-    param_grids = {
-        "RandomForest": {"n_estimators": [100, 300], "max_depth": [None, 10, 20]},
-        "GradientBoosting": {"n_estimators": [100, 200], "learning_rate": [0.05, 0.1]},
-        "LogisticRegression": {"C": [0.01, 0.1, 1], "penalty": ["l2"]},
-        "SVC": {"C": [0.1, 1, 10], "kernel": ["linear", "rbf"]}
-    }
+def ensure_dirs(root: Path, cfg: dict):
+    for d in [cfg["paths"]["reports_dir"], cfg["paths"]["figures_dir"], cfg["paths"]["models_dir"]]:
+        (root / d).mkdir(parents=True, exist_ok=True)
 
-    best_models = {}
+def read_data(root: Path, cfg: dict):
+    """Lee los datos desde data/interim y separa X/y automáticamente."""
+    train_path = root / cfg["paths"]["X_train"]
+    test_path = root / cfg["paths"]["X_test"]
+
+    df_train = pd.read_csv(train_path)
+    df_test = pd.read_csv(test_path)
+
+    # Detectar la variable objetivo
+    target_candidates = ["NObeyesdad", "target", "label", "y"]
+    target_col = next((c for c in target_candidates if c in df_train.columns), df_train.columns[-1])
+
+    X_train = df_train.drop(columns=[target_col])
+    y_train = df_train[target_col].astype(str)
+    X_test = df_test.drop(columns=[target_col])
+    y_test = df_test[target_col].astype(str)
+
+    return X_train, X_test, y_train, y_test
+
+def get_cv(cfg: dict):
+    return StratifiedKFold(
+        n_splits=cfg["cv"]["n_splits"],
+        shuffle=cfg["cv"]["shuffle"],
+        random_state=cfg["cv"]["random_state"]
+    )
+
+def count_param_combinations(grid: Dict[str, list]) -> int:
+    total = 1
+    for values in grid.values():
+        total *= len(values) if isinstance(values, (list, tuple)) else 1
+    return total
+
+def choose_mode_for_model(global_mode: str, per_model: dict, model_name: str) -> str:
+    m = (per_model or {}).get(model_name)
+    return m if m in {"auto", "grid", "random"} else global_mode
+
+def make_search(estimator, grid, cfg, cv, model_name: str):
+    scoring = cfg["search"]["scoring"]
+    n_jobs = cfg["search"]["n_jobs"]
+    verbose = cfg["search"]["verbose"]
+    n_iter = cfg["search"]["n_iter"]
+    max_combos = cfg["search"]["max_combinations"]
+    global_mode = cfg["search"]["mode"]
+    per_model = cfg["search"].get("per_model", {})
+
+    mode = choose_mode_for_model(global_mode, per_model, model_name)
+    n_combos = count_param_combinations(grid)
+    chosen = "grid" if (mode == "auto" and n_combos <= max_combos) else "random"
+
+    print(f" -> [{model_name}] grid combinations: {n_combos} | mode: {chosen}")
+
+    if chosen == "random":
+        return RandomizedSearchCV(
+            estimator, grid, n_iter=min(n_iter, n_combos),
+            scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=verbose,
+            refit=True, random_state=cfg["cv"]["random_state"]
+        )
+    return GridSearchCV(estimator, grid, scoring=scoring, cv=cv,
+                        n_jobs=n_jobs, verbose=verbose, refit=True)
+
+def plot_confusion_matrix(y_true, y_pred, labels, out_path: Path):
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    fig, ax = plt.subplots(figsize=(9, 7))
+    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(len(labels)), yticks=np.arange(len(labels)),
+           xticklabels=labels, yticklabels=labels,
+           ylabel="True label", xlabel="Predicted label",
+           title="Confusion Matrix (Test)")
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    thresh = cm.max() / 2.0
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], "d"),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    fig.savefig(out_path, bbox_inches="tight", dpi=180)
+    plt.close(fig)
+
+# =========================
+# Modelos
+# =========================
+def build_models_and_grids(cfg: dict):
+    use, grids_cfg = cfg["models"], cfg["grids"]
+    models, grids = {}, {}
+    if use["logistic_regression"]:
+        models["logistic_regression"] = LogisticRegression(max_iter=400)
+        grids["logistic_regression"] = grids_cfg["logistic_regression"]
+    if use["random_forest"]:
+        models["random_forest"] = RandomForestClassifier(random_state=cfg["cv"]["random_state"])
+        grids["random_forest"] = grids_cfg["random_forest"]
+    if use["hist_gradient_boosting"]:
+        models["hist_gradient_boosting"] = HistGradientBoostingClassifier(random_state=cfg["cv"]["random_state"])
+        grids["hist_gradient_boosting"] = grids_cfg["hist_gradient_boosting"]
+    if use["svc_rbf"]:
+        models["svc_rbf"] = SVC()
+        grids["svc_rbf"] = grids_cfg["svc_rbf"]
+    return models, grids
+
+# =========================
+# Entrenamiento principal
+# =========================
+def main():
+    root = project_root()
+    ensure_dirs(root, CFG)
+    X_train, X_test, y_train, y_test = read_data(root, CFG)
+    labels_order = sorted(y_train.unique())
+
+    print(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}, #clases: {len(labels_order)}")
+
+    cv = get_cv(CFG)
+    models, grids = build_models_and_grids(CFG)
+    results, best = [], {"score": -np.inf, "name": None, "estimator": None}
 
     for name, model in models.items():
-        logger.info(f"Entrenando modelo: {name}")
-        grid = GridSearchCV(model, param_grids[name], cv=5, scoring=scoring, n_jobs=-1, verbose=0)
-        grid.fit(X_train, y_train)
+        print(f"\n=== Buscando hiperparámetros para: {name} ===")
+        search = make_search(model, grids[name], CFG, cv, name)
+        search.fit(X_train, y_train)
+        dump(search.best_estimator_, root / "models" / f"{name}_best.joblib")
 
-        best_models[name] = grid.best_estimator_
-        logger.info(f"Mejor {scoring} para {name}: {grid.best_score_:.4f}")
+        y_pred = search.predict(X_test)
+        f1 = f1_score(y_test, y_pred, average="macro")
+        results.append({
+            "model": name,
+            "cv_f1_macro": search.best_score_,
+            "test_f1_macro": f1,
+            "best_params": search.best_params_
+        })
+        if f1 > best["score"]:
+            best.update({"score": f1, "name": name, "estimator": search.best_estimator_})
 
-        # Log en MLflow
-        with mlflow.start_run(run_name=f"{name}_train"):
-            mlflow.log_params(grid.best_params_)
-            mlflow.log_metric(f"best_cv_{scoring}", grid.best_score_)
-            signature = infer_signature(X_train, grid.best_estimator_.predict(X_train))
-            mlflow.sklearn.log_model(grid.best_estimator_, name=f"{name}_model", signature=signature)
+    best_est = best["estimator"]
+    joblib.dump(best_est, root / "models" / "best_model.joblib")
+    y_pred_best = best_est.predict(X_test)
 
-    return best_models
+    metrics = {
+        "best_model": best["name"],
+        "test_f1_macro": float(f1_score(y_test, y_pred_best, average="macro")),
+        "test_accuracy": float(accuracy_score(y_test, y_pred_best))
+    }
+    with open(root / "reports" / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
 
+    pd.DataFrame(results).to_csv(root / "reports" / "final_model_comparison.csv", index=False)
+    plot_confusion_matrix(y_test, y_pred_best, labels_order, root / "reports" / "figures" / "confusion_matrix.png")
 
-# ------------------------- #
-# --- PROCESO PRINCIPAL --- #
-# ------------------------- #
-def main():
-    """Entrena modelos y guarda los resultados."""
-    configure_mlflow(MLFLOW_TRACKING_URI, EXPERIMENT_NAME)
+    print(f"\n Entrenamiento finalizado. Mejor modelo: {best['name']} ({best['score']:.4f})")
 
-    logger.info("Cargando dataset de entrenamiento...")
-    train_df = pd.read_csv(TRAIN_FILEPATH)
-    X_train = train_df.drop(columns=["NObeyesdad"])
-    y_train = train_df["NObeyesdad"]
-
-    best_models = train_models(X_train, y_train)
-
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    for name, model in best_models.items():
-        path = os.path.join(MODELS_DIR, f"{name}_best.pkl")
-        joblib.dump(model, path)
-        logger.info(f"Modelo guardado: {path}")
-
-    logger.info("Entrenamiento finalizado exitosamente.")
-
-
-# ------------------------- #
-# --- EJECUCIÓN DE MAIN --- #
-# ------------------------- #
 if __name__ == "__main__":
     main()
