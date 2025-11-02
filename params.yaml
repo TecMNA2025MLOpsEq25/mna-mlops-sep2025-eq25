@@ -1,8 +1,31 @@
 # params.yaml
 # Parámetros centralizados del proyecto (datos, features, split, target, modelo y HPO)
+data:
+  raw_path: data/raw/obesity_estimation_modified.csv
+  processed_path: data/processed/obesity_estimation_clean.csv
+  interim_dir: data/interim
+
+split:
+  test_size: 0.3
+  random_state: 42
+  stratify: true
+
+features:
+  num_cols: ["Age", "Height", "Weight", "FCVC", "NCP", "CH2O", "FAF", "TUE"]
+  cat_cols: ["Gender", "MTRANS", "CALC"]
+  bin_cols: ["FAVC", "SCC", "SMOKE", "family_history_with_overweight"]
+  ordinal_cols: ["CAEC"]
+  # en minúsculas; el pipeline normaliza igual
+  ordinal_categories:
+    CAEC: ["no", "sometimes", "frequently", "always"]
+
+target:
+  name: "NObeyesdad"
+  metric_primary: "f1_macro"
+  metrics_secondary: ["accuracy", "precision_macro", "recall_macro", "roc_auc_ovr"]
 
 model:
-  type: "hist_gb"        # por defecto, no afecta al sweep
+  type: "hist_gb"                     # valor por defecto
   candidates: ["hist_gb", "rf", "svc_rbf", "logreg"]
 
   params:
@@ -14,11 +37,11 @@ model:
 
   search:
     enabled: true
-    kind: grid       # grid | random
+    kind: grid                        # grid | random
     cv: 5
     n_jobs: -1
     verbose: 1
-    n_iter: 40       # solo si random
+    n_iter: 40                        # solo si kind=random
 
   search_space:
     hist_gb:
@@ -40,4 +63,5 @@ model:
       penalty: ["l2"]
       solver: ["lbfgs"]
       max_iter: [500, 1000]
+
 
