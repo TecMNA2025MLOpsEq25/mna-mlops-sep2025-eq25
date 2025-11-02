@@ -1,243 +1,222 @@
-# obesity_estimator/modeling/plot_curves.py
 # -*- coding: utf-8 -*-
 """
-Genera curvas ROC (micro/macro y por clase) y PR (micro/macro y por clase)
-para cada modelo guardado en models/*.joblib y produce comparativas entre modelos.
+obesity_estimator/modeling/plot_curves.py (robusto)
+
+- Lee params.yaml
+- Limpia NaN en y y valida estratificación segura para recomponer el mismo split (test)
+- Usa models/best_model.joblib
+- Genera curvas ROC/PR por clase y macro/micro, y CSVs de resumen
 
 Salidas:
-- reports/figures/models/<model>/{roc_macro_micro.png, roc_per_class.png, pr_macro_micro.png, pr_per_class.png}
+- reports/figures/models/roc_per_class.png
+- reports/figures/models/pr_per_class.png
 - reports/figures/models/roc_macro_compare.png
 - reports/figures/models/pr_macro_compare.png
 - reports/roc_auc_by_model.csv
 - reports/pr_auc_by_model.csv
 """
 
-import os
-import glob
 from pathlib import Path
+import yaml
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 import matplotlib.pyplot as plt
 
-from sklearn.preprocessing import label_binarize
+from sklearn.preprocessing import LabelBinarizer
 from sklearn.metrics import (
-    roc_auc_score, roc_curve, auc,
-    average_precision_score, precision_recall_curve
+    roc_curve,
+    auc,
+    precision_recall_curve,
+    average_precision_score,
 )
+from sklearn.model_selection import train_test_split
 
-# -------------------
-# Config
-# -------------------
-REPO = Path(__file__).resolve().parents[2]
-DATA_TEST = REPO / "data" / "interim" / "test_prepared.csv"   # contiene X_test + y (col TARGET)
-MODELS_DIR = REPO / "models"
-FIG_DIR = REPO / "reports" / "figures" / "models"
-OUT_ROC = REPO / "reports" / "roc_auc_by_model.csv"
-OUT_PR  = REPO / "reports" / "pr_auc_by_model.csv"
-TARGET_COL = "NObeyesdad"  # ajusta si tu columna objetivo tiene otro nombre
 
-FIG_DIR.mkdir(parents=True, exist_ok=True)
+def _ensure_dirs():
+    Path("reports/figures/models").mkdir(parents=True, exist_ok=True)
 
-# -------------------
-# Utilidades
-# -------------------
-def _ensure_model_dir(name: str) -> Path:
-    p = FIG_DIR / name
-    p.mkdir(parents=True, exist_ok=True)
-    return p
 
-def _get_models():
-    # Carga todos los *_best.joblib y best_model.joblib si existe
-    paths = []
-    paths += glob.glob(str(MODELS_DIR / "*_best.joblib"))
-    best_path = MODELS_DIR / "best_model.joblib"
-    if best_path.exists():
-        paths.append(str(best_path))
-    return sorted(set(paths))
-
-def _split_X_y(df: pd.DataFrame, target: str):
-    assert target in df.columns, f"La columna objetivo '{target}' no está en test_prepared.csv"
-    y = df[target].astype(str)
-    X = df.drop(columns=[target])
+def _load_dataset(processed_path: str, target_col: str):
+    df = pd.read_csv(processed_path)
+    if target_col not in df.columns:
+        raise ValueError(f"La columna objetivo '{target_col}' no está en {processed_path}")
+    y = df[target_col]
+    X = df.drop(columns=[target_col])
     return X, y
 
-def _prob_or_decision(estimator, X):
-    # Devuelve probabilidades (predict_proba) o, si no hay, decision_function normalizada por softmax
-    if hasattr(estimator, "predict_proba"):
-        return estimator.predict_proba(X)
-    elif hasattr(estimator, "decision_function"):
-        z = estimator.decision_function(X)
-        # z shape: (n_samples, n_classes) -> softmax
-        z = np.array(z)
-        if z.ndim == 1:
-            z = z.reshape(-1, 1)
-        e = np.exp(z - z.max(axis=1, keepdims=True))
-        return e / e.sum(axis=1, keepdims=True)
-    else:
-        raise ValueError("El estimador no expone ni predict_proba ni decision_function.")
 
-def _safe_name(p: str) -> str:
-    n = Path(p).stem
-    if n == "best_model":
-        return "best_model"
-    return n.replace("_best", "")
+def _clean_xy(X: pd.DataFrame, y: pd.Series):
+    mask = ~y.isna()
+    if (~mask).any():
+        X = X.loc[mask].reset_index(drop=True)
+        y = y.loc[mask].reset_index(drop=True)
+    return X, y
 
-# -------------------
-# Plot helpers
-# -------------------
-def plot_roc_curves_one_model(name, y_true_b, probas, classes, outdir: Path):
-    # micro
-    fpr_micro, tpr_micro, _ = roc_curve(y_true_b.ravel(), probas.ravel())
-    roc_auc_micro = auc(fpr_micro, tpr_micro)
 
-    # por clase
-    fpr, tpr, roc_auc = {}, {}, {}
-    for i, cls in enumerate(classes):
-        fpr[i], tpr[i], _ = roc_curve(y_true_b[:, i], probas[:, i])
+def _safe_stratify(y: pd.Series, want_stratify: bool):
+    if not want_stratify:
+        return None
+    vc = y.value_counts(dropna=False)
+    if len(vc) < 2 or (vc < 2).any():
+        return None
+    return y
+
+
+def _macro_micro_roc(y_test_bin, y_score):
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+    n_classes = y_test_bin.shape[1]
+    for i in range(n_classes):
+        fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
         roc_auc[i] = auc(fpr[i], tpr[i])
 
-    # macro
-    all_fpr = np.unique(np.concatenate([fpr[i] for i in range(len(classes))]))
+    # Micro
+    fpr["micro"], tpr["micro"], _ = roc_curve(y_test_bin.ravel(), y_score.ravel())
+    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+
+    # Macro
+    all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
     mean_tpr = np.zeros_like(all_fpr)
-    for i in range(len(classes)):
+    for i in range(n_classes):
         mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
-    mean_tpr /= len(classes)
-    roc_auc_macro = auc(all_fpr, mean_tpr)
+    mean_tpr /= n_classes
+    roc_auc["macro"] = auc(all_fpr, mean_tpr)
 
-    # Plot macro/micro
-    plt.figure(figsize=(7,6))
-    plt.plot(fpr_micro, tpr_micro, lw=2, label=f"micro-avg (AUC={roc_auc_micro:.3f})")
-    plt.plot(all_fpr,  mean_tpr,   lw=2, label=f"macro-avg (AUC={roc_auc_macro:.3f})")
-    plt.plot([0,1], [0,1], linestyle="--", lw=1, color="gray")
-    plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
-    plt.title(f"ROC - {name} (micro/macro)")
-    plt.legend(loc="lower right")
-    plt.tight_layout()
-    (outdir / "roc_macro_micro.png").unlink(missing_ok=True)
-    plt.savefig(outdir / "roc_macro_micro.png", dpi=150)
-    plt.close()
+    return fpr, tpr, roc_auc, all_fpr, mean_tpr
 
-    # Plot por clase
-    plt.figure(figsize=(8,6))
-    for i, cls in enumerate(classes):
-        plt.plot(fpr[i], tpr[i], lw=1.5, label=f"{cls} (AUC={roc_auc[i]:.3f})")
-    plt.plot([0,1], [0,1], linestyle="--", lw=1, color="gray")
-    plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
-    plt.title(f"ROC por clase - {name}")
-    plt.legend(fontsize=8, loc="lower right")
-    plt.tight_layout()
-    (outdir / "roc_per_class.png").unlink(missing_ok=True)
-    plt.savefig(outdir / "roc_per_class.png", dpi=150)
-    plt.close()
 
-    return roc_auc_macro
+def _macro_micro_pr(y_test_bin, y_score):
+    precision = dict()
+    recall = dict()
+    ap = dict()
+    n_classes = y_test_bin.shape[1]
+    for i in range(n_classes):
+        precision[i], recall[i], _ = precision_recall_curve(y_test_bin[:, i], y_score[:, i])
+        ap[i] = average_precision_score(y_test_bin[:, i], y_score[:, i])
 
-def plot_pr_curves_one_model(name, y_true_b, probas, classes, outdir: Path):
-    # micro
-    precision_micro, recall_micro, _ = precision_recall_curve(y_true_b.ravel(), probas.ravel())
-    ap_micro = average_precision_score(y_true_b, probas, average="micro")
+    # Micro
+    precision["micro"], recall["micro"], _ = precision_recall_curve(
+        y_test_bin.ravel(), y_score.ravel()
+    )
+    ap["micro"] = average_precision_score(y_test_bin, y_score, average="micro")
 
-    # por clase
-    prec, rec, ap = {}, {}, {}
-    for i, cls in enumerate(classes):
-        prec[i], rec[i], _ = precision_recall_curve(y_true_b[:, i], probas[:, i])
-        ap[i] = average_precision_score(y_true_b[:, i], probas[:, i])
+    # Macro
+    ap["macro"] = float(np.mean([ap[i] for i in range(n_classes)]))
 
-    # macro AP
-    ap_macro = average_precision_score(y_true_b, probas, average="macro")
+    return precision, recall, ap
 
-    # Plot macro/micro
-    plt.figure(figsize=(7,6))
-    plt.plot(recall_micro, precision_micro, lw=2, label=f"micro-avg (AP={ap_micro:.3f})")
-    plt.xlabel("Recall"); plt.ylabel("Precision")
-    plt.title(f"Precision-Recall - {name} (micro)")
-    plt.legend(loc="lower left")
-    plt.tight_layout()
-    (outdir / "pr_macro_micro.png").unlink(missing_ok=True)
-    plt.savefig(outdir / "pr_macro_micro.png", dpi=150)
-    plt.close()
-
-    # Plot por clase
-    plt.figure(figsize=(8,6))
-    for i, cls in enumerate(classes):
-        plt.plot(rec[i], prec[i], lw=1.5, label=f"{cls} (AP={ap[i]:.3f})")
-    plt.xlabel("Recall"); plt.ylabel("Precision")
-    plt.title(f"Precision-Recall por clase - {name} (macro AP={ap_macro:.3f})")
-    plt.legend(fontsize=8, loc="lower left")
-    plt.tight_layout()
-    (outdir / "pr_per_class.png").unlink(missing_ok=True)
-    plt.savefig(outdir / "pr_per_class.png", dpi=150)
-    plt.close()
-
-    return ap_macro
 
 def main():
-    # 1) Carga test y separa X/y
-    df_test = pd.read_csv(DATA_TEST)
-    X_test, y_test = _split_X_y(df_test, TARGET_COL)
-    classes = sorted(y_test.unique().tolist())
-    y_test_b = label_binarize(y_test, classes=classes)
+    with open("params.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
 
-    model_paths = _get_models()
-    if not model_paths:
-        raise SystemExit("No se encontraron modelos en models/*.joblib")
+    processed_path = cfg["data"]["processed_path"]
+    target = cfg["target"]["name"]
+    split_cfg = cfg["split"]
 
-    roc_summary = []
-    pr_summary  = []
+    _ensure_dirs()
 
-    # 2) Curvas por modelo
-    macro_roc_all = {}
-    macro_pr_all  = {}
+    # Datos y split test con limpieza + estratificación segura
+    X, y = _load_dataset(processed_path, target)
+    X, y = _clean_xy(X, y)
+    strat = _safe_stratify(y, split_cfg.get("stratify", True))
+    _, X_test, _, y_test = train_test_split(
+        X, y,
+        test_size=split_cfg.get("test_size", 0.3),
+        random_state=split_cfg.get("random_state", 42),
+        stratify=strat,
+    )
 
-    for p in model_paths:
-        name = _safe_name(p)
-        outdir = _ensure_model_dir(name)
+    # Modelo
+    model_path = Path("models/best_model.joblib")
+    if not model_path.exists():
+        raise FileNotFoundError("No se encontró models/best_model.joblib. Ejecuta entrenamiento primero.")
+    model = joblib.load(model_path)
 
-        est = joblib.load(p)
-        probas = _prob_or_decision(est, X_test)
-        # asegurar forma consistente
-        if probas.shape[1] != len(classes):
-            raise ValueError(f"{name}: salida proba tiene {probas.shape[1]} clases y se esperaban {len(classes)}.")
+    if not hasattr(model, "predict_proba"):
+        raise AttributeError("El modelo cargado no soporta predict_proba, requerido para curvas ROC/PR.")
 
-        roc_macro = plot_roc_curves_one_model(name, y_test_b, probas, classes, outdir)
-        pr_macro  = plot_pr_curves_one_model(name, y_test_b, probas, classes, outdir)
+    # Probabilidades
+    y_score = model.predict_proba(X_test)  # (n_samples, n_classes)
 
-        macro_roc_all[name] = roc_macro
-        macro_pr_all[name]  = pr_macro
+    # Binarización de y
+    lb = LabelBinarizer()
+    y_test_bin = lb.fit_transform(y_test)
+    class_labels = lb.classes_
+    # Caso binario: garantizar 2 columnas
+    if y_test_bin.ndim == 1:
+        y_test_bin = np.column_stack([1 - y_test_bin, y_test_bin])
 
-        roc_summary.append({"model": name, "roc_auc_macro": float(roc_macro)})
-        pr_summary.append({"model": name, "ap_macro": float(pr_macro)})
+    # ROC macro/micro
+    fpr, tpr, roc_auc, all_fpr, mean_tpr = _macro_micro_roc(y_test_bin, y_score)
 
-    # 3) Comparativas entre modelos (macro)
-    # ROC macro compare
-    plt.figure(figsize=(7,6))
-    for name, val in sorted(macro_roc_all.items(), key=lambda x: -x[1]):
-        plt.plot([0,1], [0,1], alpha=0)  # espacio
-        plt.scatter([0.6], [0.1], alpha=0)  # truco layout
-        plt.plot([], [], label=f"{name}: AUC={val:.3f}")
-    plt.plot([0,1], [0,1], linestyle="--", color="gray", lw=1)
-    plt.title("Comparativa ROC macro (AUC) por modelo")
+    # PR macro/micro
+    precision, recall, ap = _macro_micro_pr(y_test_bin, y_score)
+
+    # ROC por clase
+    plt.figure(figsize=(8, 6))
+    for i, label in enumerate(class_labels):
+        plt.plot(fpr[i], tpr[i], lw=1.2, label=f"Clase {label} (AUC={roc_auc[i]:.3f})")
+    plt.plot([0, 1], [0, 1], "k--", lw=1)
+    plt.xlabel("FPR")
+    plt.ylabel("TPR")
+    plt.title("Curvas ROC por clase")
+    plt.legend(fontsize=8, loc="lower right")
+    plt.tight_layout()
+    plt.savefig("reports/figures/models/roc_per_class.png", dpi=150)
+    plt.close()
+
+    # PR por clase
+    plt.figure(figsize=(8, 6))
+    for i, label in enumerate(class_labels):
+        plt.plot(recall[i], precision[i], lw=1.2, label=f"Clase {label} (AP={ap[i]:.3f})")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Curvas Precision-Recall por clase")
+    plt.legend(fontsize=8, loc="lower left")
+    plt.tight_layout()
+    plt.savefig("reports/figures/models/pr_per_class.png", dpi=150)
+    plt.close()
+
+    # ROC macro vs micro
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr["micro"], tpr["micro"], label=f"micro-avg ROC (AUC={roc_auc['micro']:.3f})", lw=1.6)
+    plt.plot(all_fpr, mean_tpr, label=f"macro-avg ROC (AUC={roc_auc['macro']:.3f})", lw=1.6)
+    plt.plot([0, 1], [0, 1], "k--", lw=1)
+    plt.xlabel("FPR")
+    plt.ylabel("TPR")
+    plt.title("ROC macro y micro")
     plt.legend(loc="lower right")
     plt.tight_layout()
-    (FIG_DIR / "roc_macro_compare.png").unlink(missing_ok=True)
-    plt.savefig(FIG_DIR / "roc_macro_compare.png", dpi=150)
+    plt.savefig("reports/figures/models/roc_macro_compare.png", dpi=150)
     plt.close()
 
-    # PR macro compare
-    plt.figure(figsize=(7,6))
-    for name, val in sorted(macro_pr_all.items(), key=lambda x: -x[1]):
-        plt.plot([], [], label=f"{name}: AP={val:.3f}")
-    plt.title("Comparativa PR macro (AP) por modelo")
+    # PR macro vs micro
+    plt.figure(figsize=(8, 6))
+    plt.plot(recall["micro"], precision["micro"], label=f"micro-avg PR (AP={ap['micro']:.3f})", lw=1.6)
+    # Punto macro (no curva agregada)
+    plt.scatter([0.5], [ap["macro"]], label=f"macro-avg AP={ap['macro']:.3f}", s=60)
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision-Recall macro y micro")
     plt.legend(loc="lower left")
     plt.tight_layout()
-    (FIG_DIR / "pr_macro_compare.png").unlink(missing_ok=True)
-    plt.savefig(FIG_DIR / "pr_macro_compare.png", dpi=150)
+    plt.savefig("reports/figures/models/pr_macro_compare.png", dpi=150)
     plt.close()
 
-    # 4) Guardar CSVs de resumen
-    pd.DataFrame(roc_summary).sort_values("roc_auc_macro", ascending=False).to_csv(OUT_ROC, index=False)
-    pd.DataFrame(pr_summary).sort_values("ap_macro", ascending=False).to_csv(OUT_PR, index=False)
+    # CSVs
+    pd.DataFrame(
+        {"model": ["best_model"], "roc_auc_macro": [roc_auc["macro"]], "roc_auc_micro": [roc_auc["micro"]]}
+    ).to_csv("reports/roc_auc_by_model.csv", index=False)
+
+    pd.DataFrame(
+        {"model": ["best_model"], "ap_macro": [ap["macro"]], "ap_micro": [ap["micro"]]}
+    ).to_csv("reports/pr_auc_by_model.csv", index=False)
+
+    print("Curvas y métricas agregadas generadas correctamente.")
+
 
 if __name__ == "__main__":
     main()
