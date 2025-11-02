@@ -1,9 +1,7 @@
 /figures
-/confusion_matrix.png
 /model_comparison.csv
 /final_model_comparison.csv
 /confusion_matrix.csv
-/evaluation_results.csv
 /metrics.json
 /roc_auc_by_model.csv
 /pr_auc_by_model.csv
