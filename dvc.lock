@@ -1,0 +1,254 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: PYTHONPATH=. python obesity_estimator/dataset.py
+    deps:
+    - path: data/raw/obesity_estimation_modified.csv
+      hash: md5
+      md5: a3f3a840683ff115b8853e992200ba97
+      size: 290776
+    - path: obesity_estimator/dataset.py
+      hash: md5
+      md5: e64207a10acf9b8bfcfe1ab1c35fa920
+      size: 3941
+    outs:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+  eda:
+    cmd: PYTHONPATH=. python obesity_estimator/plots.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: obesity_estimator/plots.py
+      hash: md5
+      md5: dcadabebbe0aad06fcec479b08cc972f
+      size: 6268
+    outs:
+    - path: reports/figures/eda
+      hash: md5
+      md5: ca43b2bcc6981d408097a4cee73b08d8.dir
+      size: 1947503
+      nfiles: 30
+  preprocessing:
+    cmd: PYTHONPATH=. python obesity_estimator/features.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: obesity_estimator/features.py
+      hash: md5
+      md5: 0d217c1d2dcb11f2ae2f7af3ca91ff5e
+      size: 5088
+    outs:
+    - path: data/interim/class_distribution.csv
+      hash: md5
+      md5: 5ee759d760a212ddfe72840d74758493
+      size: 227
+    - path: data/interim/preprocessor.pkl
+      hash: md5
+      md5: 17ecfe8c0e0ab4524bdbb8e370a30bc5
+      size: 4478
+    - path: data/interim/test_prepared.csv
+      hash: md5
+      md5: 3eeaf0a35e61ddd9e03537486187d7dc
+      size: 197023
+    - path: data/interim/train_prepared.csv
+      hash: md5
+      md5: 7d501cd2bb193772eaf16d5e89016bef
+      size: 459202
+  training:
+    cmd: PYTHONPATH=. python obesity_estimator/modeling/train.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: obesity_estimator/modeling/train.py
+      hash: md5
+      md5: 7e83f6a5087be0f9ad511c4ea9a4bf08
+      size: 4998
+    - path: obesity_estimator/pipeline.py
+      hash: md5
+      md5: a44cc47da978261410c949a16cb5d315
+      size: 6043
+    - path: params.yaml
+      hash: md5
+      md5: a6538062a10e69e36b403a0ec9f20245
+      size: 1214
+    params:
+      params.yaml:
+        features:
+          num_cols:
+          - Age
+          - Height
+          - Weight
+          - FCVC
+          - NCP
+          - CH2O
+          - FAF
+          - TUE
+          cat_cols:
+          - Gender
+          - MTRANS
+          - CALC
+          bin_cols:
+          - FAVC
+          - SCC
+          - SMOKE
+          - family_history_with_overweight
+          ordinal_cols:
+          - CAEC
+          ordinal_categories:
+            CAEC:
+            - no
+            - Sometimes
+            - Frequently
+            - Always
+        model:
+          type: hist_gb
+          params:
+            learning_rate: 0.1
+            max_depth:
+            max_iter: 300
+            l2_regularization: 0.0
+            random_state: 42
+        split:
+          test_size: 0.3
+          random_state: 42
+          stratify: true
+        target:
+          name: NObeyesdad
+          metric_primary: f1_macro
+          metrics_secondary:
+          - accuracy
+          - precision_macro
+          - recall_macro
+          - roc_auc_ovr
+    outs:
+    - path: models/best_model.joblib
+      hash: md5
+      md5: b6cab00512f09a9dfe7abc92f374b794
+      size: 3032370
+    - path: reports/classification_report.csv
+      hash: md5
+      md5: 2b1c23f872a1b7c08b52f48752f16623
+      size: 773
+    - path: reports/metrics.json
+      hash: md5
+      md5: 461c1fb9677cc21babbd030ea4f71732
+      size: 185
+  evaluation:
+    cmd: PYTHONPATH=. python obesity_estimator/modeling/predict.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: models/best_model.joblib
+      hash: md5
+      md5: b6cab00512f09a9dfe7abc92f374b794
+      size: 3032370
+    - path: obesity_estimator/modeling/predict.py
+      hash: md5
+      md5: 0fb5fe9477dd9abde4547244876dbfca
+      size: 4156
+    - path: params.yaml
+      hash: md5
+      md5: a6538062a10e69e36b403a0ec9f20245
+      size: 1214
+    params:
+      params.yaml:
+        features:
+          num_cols:
+          - Age
+          - Height
+          - Weight
+          - FCVC
+          - NCP
+          - CH2O
+          - FAF
+          - TUE
+          cat_cols:
+          - Gender
+          - MTRANS
+          - CALC
+          bin_cols:
+          - FAVC
+          - SCC
+          - SMOKE
+          - family_history_with_overweight
+          ordinal_cols:
+          - CAEC
+          ordinal_categories:
+            CAEC:
+            - no
+            - Sometimes
+            - Frequently
+            - Always
+        split:
+          test_size: 0.3
+          random_state: 42
+          stratify: true
+        target:
+          name: NObeyesdad
+          metric_primary: f1_macro
+          metrics_secondary:
+          - accuracy
+          - precision_macro
+          - recall_macro
+          - roc_auc_ovr
+    outs:
+    - path: reports/classification_report_test.csv
+      hash: md5
+      md5: 2b1c23f872a1b7c08b52f48752f16623
+      size: 773
+    - path: reports/confusion_matrix.png
+      hash: md5
+      md5: f81ed0cdc4a8f35bbf0b71435c7eefc5
+      size: 69632
+    - path: reports/evaluation_results.csv
+      hash: md5
+      md5: 432ec5a6f6d554de5d4445930531fdba
+      size: 153
+    - path: reports/y_true_pred.csv
+      hash: md5
+      md5: 104b49ddb7a3e531838b8a6641b40da8
+      size: 21498
+  model_plots:
+    cmd: PYTHONPATH=. python obesity_estimator/modeling/plot_curves.py
+    deps:
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: models/best_model.joblib
+      hash: md5
+      md5: b6cab00512f09a9dfe7abc92f374b794
+      size: 3032370
+    - path: obesity_estimator/modeling/plot_curves.py
+      hash: md5
+      md5: d80e20fca106dc27e3c672640342b900
+      size: 7090
+    - path: params.yaml
+      hash: md5
+      md5: a6538062a10e69e36b403a0ec9f20245
+      size: 1214
+    outs:
+    - path: reports/figures/models
+      hash: md5
+      md5: 37f0f3f798578bf6c259c7a4ef8f966c.dir
+      size: 227128
+      nfiles: 4
+    - path: reports/pr_auc_by_model.csv
+      hash: md5
+      md5: 620d755717545d21f423bca494f40134
+      size: 73
+    - path: reports/roc_auc_by_model.csv
+      hash: md5
+      md5: 0ea546761f897b704556979a367de326
+      size: 83
