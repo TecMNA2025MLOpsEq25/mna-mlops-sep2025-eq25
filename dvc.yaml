@@ -1,3 +1,4 @@
+---
 stages:
   prepare:
     cmd: PYTHONPATH=. python obesity_estimator/dataset.py
@@ -13,7 +14,7 @@ stages:
       - data/processed/obesity_estimation_clean.csv
       - obesity_estimator/plots.py
     outs:
-      - reports/figures
+      - reports/figures/eda
 
   preprocessing:
     cmd: PYTHONPATH=. python obesity_estimator/features.py
@@ -29,11 +30,15 @@ stages:
   training:
     cmd: PYTHONPATH=. python obesity_estimator/modeling/train.py
     deps:
-      - data/interim/train_prepared.csv
       - obesity_estimator/modeling/train.py
-      - obesity_estimator/utils.py
+      - data/interim/train_prepared.csv
+      - data/interim/test_prepared.csv
     outs:
-      - models/
+      - models/best_model.joblib
+    metrics:
+      - reports/metrics.json
+    plots:
+      - reports/figures/confusion_matrix.png
 
   evaluation:
     cmd: PYTHONPATH=. python obesity_estimator/modeling/predict.py
@@ -47,4 +52,19 @@ stages:
       - reports/confusion_matrix.png
     metrics:
       - reports/evaluation_results.csv
+
+  model_plots:
+    cmd: PYTHONPATH=. python obesity_estimator/modeling/plot_curves.py
+    deps:
+      - obesity_estimator/modeling/plot_curves.py
+      - data/interim/test_prepared.csv
+      - models/best_model.joblib
+      - models/logistic_regression_best.joblib
+      - models/random_forest_best.joblib
+      - models/hist_gradient_boosting_best.joblib
+      - models/svc_rbf_best.joblib
+    outs:
+      - reports/figures/models
+      - reports/roc_auc_by_model.csv
+      - reports/pr_auc_by_model.csv
 
