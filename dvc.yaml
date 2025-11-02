@@ -27,18 +27,22 @@ stages:
       - data/interim/class_distribution.csv
 
   training:
-    cmd: PYTHONPATH=. python obesity_estimator/modeling/train.py
+    cmd: PYTHONPATH=. python obesity_estimator/modeling/train_all.py
     deps:
-      - obesity_estimator/modeling/train.py
+      - obesity_estimator/modeling/train_all.py
+      - obesity_estimator/modeling/search.py
       - obesity_estimator/pipeline.py
       - data/processed/obesity_estimation_clean.csv
       - params.yaml
     outs:
       - models/best_model.joblib
+      - reports/hpo
     metrics:
       - reports/metrics.json:
           cache: false
       - reports/classification_report.csv:
+          cache: false
+      - reports/final_model_comparison.csv:
           cache: false
     params:
       - split
