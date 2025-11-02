@@ -160,8 +160,36 @@ dvc repro
 | Logistic Regression  | 0.918    | 0.921    | 0.924   | 0.926  | Baseline        |
 
 ---
+## 7 Aplicación de Mejores Prácticas de Codificación en el Pipeline de Modelado
 
-## 7. Roles del equipo y responsabilidades
+La etapa de modelado fue rediseñada para incorporar las mejores prácticas de ingeniería de ML:
+
+Evitar Data Leakage:
+Las transformaciones se aplican dentro del Pipeline() y solo sobre los datos de entrenamiento.
+
+Codificación y escalado encapsulados:
+Se usaron OneHotEncoder y StandardScaler dentro del pipeline, preservando la consistencia entre entrenamiento y predicción.
+
+Selección automática de hiperparámetros:
+El script detecta el tamaño del grid y selecciona entre GridSearchCV o RandomizedSearchCV según el número de combinaciones posibles, optimizando tiempo y precisión.
+
+Cross-Validation Estratificada:
+Implementación de StratifiedKFold para mantener la distribución de clases en todas las divisiones.
+
+Métricas robustas:
+Se evaluó con F1-macro, accuracy, precision y recall, priorizando la equidad entre clases desbalanceadas.
+
+Reproducibilidad total:
+Se usaron random_state=42 y versionamiento en DVC para garantizar que cada ejecución pueda replicarse.
+
+Automatización de comparación de modelos:
+Todos los modelos generan un archivo final_model_comparison.csv donde se documentan los resultados de cada configuración.
+
+Interpretabilidad:
+Se añadieron análisis automáticos de feature importance y confusion matrix, guardando las figuras para revisión.
+
+---
+## 8. Roles del equipo y responsabilidades
 
 | Rol               | Nombre               | Responsabilidades principales                                                       |
 |-------------------|----------------------|-------------------------------------------------------------------------------------|
@@ -176,7 +204,7 @@ Trabajo colaborativo vía GitHub PRs, issues y branches, con revisiones cruzadas
 
 ---
 
-## 8. Evidencias de colaboración (GitHub)
+## 9. Evidencias de colaboración (GitHub)
 
 - Commits totales: +70  
 - Pull Requests cerrados: 10  
@@ -195,7 +223,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 9. Métricas clave del proyecto
+## 10. Métricas clave del proyecto
 
 | Tipo              | Métrica     | Valor     | Descripción                                  |
 |-------------------|-------------|-----------|----------------------------------------------|
@@ -208,7 +236,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 10. Conclusiones generales
+## 11. Conclusiones generales
 
 1. Pipeline totalmente reproducible y versionado con DVC.  
 2. HistGradientBoosting ofrece la mejor precisión y estabilidad.  
@@ -218,7 +246,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 11. Referencias
+## 12. Referencias
 
 - Provost, F. & Fawcett, T. (2013). *Data Science for Business*.  
 - Chapman et al. (2000). *CRISP-DM 1.0: Step-by-Step Data Mining Guide*.  
