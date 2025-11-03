@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import annotations
+import os
 import json
 from pathlib import Path
 from typing import Dict, Any, List
@@ -15,10 +16,21 @@ from sklearn.metrics import (
     classification_report
 )
 
+# --- MLflow ---
+import mlflow
+import mlflow.sklearn
+
 from obesity_estimator.pipeline import build_pipeline
 from obesity_estimator.modeling.search import build_estimator, select_searcher
+from obesity_estimator.config import (
+    MLFLOW_TRACKING_URI as CFG_TRACKING_URI,
+    EXPERIMENT_NAME as CFG_EXPERIMENT_NAME,
+)
 
 
+# --------------------------
+# Utilidades locales
+# --------------------------
 def _ensure_dirs():
     Path("reports").mkdir(parents=True, exist_ok=True)
     Path("reports/hpo").mkdir(parents=True, exist_ok=True)
@@ -103,30 +115,101 @@ def _hpo_and_fit(pipe, X_tr, y_tr, model_type: str, model_cfg: Dict[str, Any], t
     return best, best_params_clean
 
 
-def _build_pipe_with_estimator(features_cfg: Dict[str, Any], model_cfg: Dict[str, Any], base_estimator):
+def _build_pipe_with_estimator(
+    features_cfg: Dict[str, Any],
+    model_cfg: Dict[str, Any],
+    base_estimator,
+    X_sample: pd.DataFrame,
+):
     """
-    Intenta construir el pipeline pasando 'estimator=...' si tu build_pipeline lo soporta.
-    Si no, hace fallback: construye y luego sustituye 'clf'.
+    Construye un pipeline y fuerza la sustitución del clasificador por `base_estimator`.
+    Si `build_pipeline` no está disponible/compatible, genera un preprocesador
+    (num + cat) en base a los dtypes de X_sample y devuelve:
+        Pipeline([('pre', ColumnTransformer(...)), ('clf', base_estimator)])
     """
+    # 1) Intento con firma nueva (si tu build_pipeline lo soporta)
     try:
-        pipe = build_pipeline(features_cfg, model_cfg, estimator=base_estimator)  # firma nueva
+        pipe = build_pipeline(features_cfg, model_cfg, estimator=base_estimator)
         return pipe
     except TypeError:
-        # Firma antigua: build_pipeline(features_cfg, model_cfg) y luego sustituimos el clf
-        pipe = build_pipeline(features_cfg, model_cfg)
+        pass  # cae al plan 2
+    except ValueError:
+        pass
+
+    # 2) Fallback “seguro”: intentar construir con tipo soportado y reemplazar clf
+    safe_cfg = dict(model_cfg)
+    safe_cfg["type"] = "logreg"  # ajusta si tu pipeline soporta otro "seguro"
+    try:
+        pipe = build_pipeline(features_cfg, safe_cfg)
         try:
             pipe.set_params(clf=base_estimator)
-        except ValueError:
-            # Si el paso no se llama 'clf' por alguna refactorización, fuerza el reemplazo
+            return pipe
+        except Exception:
             from sklearn.pipeline import Pipeline as SkPipeline
-            steps = list(pipe.steps)
-            # reemplaza el último paso por el estimador
-            if steps and steps[-1][0] != "clf":
+            steps = list(getattr(pipe, "steps", []))
+            if steps:
                 steps[-1] = ("clf", base_estimator)
-            else:
-                steps[-1] = ("clf", base_estimator)
-            pipe = SkPipeline(steps=steps)
-        return pipe
+                return SkPipeline(steps=steps)
+    except Exception:
+        pass  # caemos al plan 3 (preprocesador data-driven)
+
+    # 3) Fallback “data-driven”: construir preprocesador con dtypes de X_sample
+    from sklearn.compose import ColumnTransformer
+    from sklearn.pipeline import Pipeline as SkPipeline
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+    num_cols = list(X_sample.select_dtypes(include=["number"]).columns)
+    cat_cols = [c for c in X_sample.columns if c not in num_cols]
+
+    # Compatibilidad sklearn: sparse_output (>=1.2) vs sparse (<=1.1)
+    try:
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    except TypeError:
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
+
+    pre = ColumnTransformer(
+        transformers=[
+            ("num", StandardScaler(with_mean=False), num_cols),
+            ("cat", ohe, cat_cols),
+        ],
+        remainder="drop",
+        n_jobs=None,
+    )
+
+    pipe = SkPipeline(steps=[
+        ("pre", pre),
+        ("clf", base_estimator),
+    ])
+    return pipe
+
+
+# --------------------------
+# Helpers MLflow
+# --------------------------
+def _flatten_dict(d: Dict[str, Any], parent: str = "", sep: str = ".") -> Dict[str, Any]:
+    flat = {}
+    for k, v in (d or {}).items():
+        kk = f"{parent}{sep}{k}" if parent else k
+        if isinstance(v, dict):
+            flat.update(_flatten_dict(v, kk, sep))
+        else:
+            flat[kk] = v
+    return flat
+
+
+def _mlflow_setup():
+    """
+    Configura MLflow tomando defaults de config.py y permitiendo override por variables de entorno:
+      - MLFLOW_TRACKING_URI
+      - MLFLOW_EXPERIMENT_NAME
+      - MLFLOW_REGISTER (1 para registrar en Model Registry)
+    """
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", str(CFG_TRACKING_URI))
+    experiment = os.getenv("MLFLOW_EXPERIMENT_NAME", CFG_EXPERIMENT_NAME)
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(experiment)
+    register = os.getenv("MLFLOW_REGISTER", "0") == "1"
+    return tracking_uri, experiment, register
 
 
 def main():
@@ -142,6 +225,12 @@ def main():
     split_cfg = cfg["split"]
     target_cfg = cfg["target"]
     model_cfg = cfg["model"]
+
+    # MLflow setup (no falla si no está disponible el backend)
+    try:
+        _, _, _ = _mlflow_setup()
+    except Exception as _e:
+        print(f"[WARN] MLflow setup: {_e}")
 
     # Modelos a evaluar en una sola corrida
     candidates: List[str] = model_cfg.get("candidates", [model_cfg.get("type", "hist_gb")])
@@ -163,6 +252,13 @@ def main():
     best_overall = None
     best_overall_score = float("-inf")
     best_overall_type = None
+    best_overall_metrics = None
+
+    # Cargar params completos para loguearlos como parámetros
+    try:
+        params_all = yaml.safe_load(Path("params.yaml").read_text(encoding="utf-8"))
+    except Exception:
+        params_all = {}
 
     # Barrido por modelo
     for mtype in candidates:
@@ -171,7 +267,7 @@ def main():
         mc["type"] = mtype
 
         base_est = build_estimator(mc)
-        pipe = _build_pipe_with_estimator(features_cfg, mc, base_est)
+        pipe = _build_pipe_with_estimator(features_cfg, mc, base_est, X_tr)
 
         # HPO (si aplica) + fit
         best_model, best_params = _hpo_and_fit(pipe, X_tr, y_tr, mtype, mc, target_cfg)
@@ -190,12 +286,52 @@ def main():
             "artifact": out_path
         })
 
+        # ---------- MLflow: run por candidato ----------
+        try:
+            run_params = {
+                "global": params_all,
+                "run": {
+                    "model_type": mtype,
+                    "hpo_enabled": bool((mc or {}).get("search", {}).get("enabled", False)),
+                },
+                "best_params": best_params or {},
+            }
+
+            tracking_uri = os.getenv("MLFLOW_TRACKING_URI", str(CFG_TRACKING_URI))
+            experiment   = os.getenv("MLFLOW_EXPERIMENT_NAME", CFG_EXPERIMENT_NAME)
+            mlflow.set_tracking_uri(tracking_uri)
+            mlflow.set_experiment(experiment)
+
+            with mlflow.start_run(run_name=f"{mtype}"):
+                mlflow.log_params(_flatten_dict(run_params))
+                for k, v in metrics_val.items():
+                    try:
+                        mlflow.log_metric(k, float(v))
+                    except Exception:
+                        pass
+
+                # Artefactos ligeros
+                artifacts = [
+                    Path("params.yaml"),
+                    Path("dvc.yaml"),
+                ]
+                for p in artifacts:
+                    if p.exists():
+                        mlflow.log_artifact(str(p))
+                # (Opcional) subir el modelo del candidato como artefacto del run
+                if Path(out_path).exists():
+                    mlflow.log_artifact(out_path)
+        except Exception as _e:
+            print(f"[WARN] MLflow (candidato {mtype}): {_e}")
+        # ---------- fin MLflow candidato ----------
+
         # Selección del mejor según la métrica primaria
         score = metrics_val.get(metric_primary, -1.0)
         if score > best_overall_score:
             best_overall_score = score
             best_overall = best_model
             best_overall_type = mtype
+            best_overall_metrics = metrics_val
 
     # Comparativa ordenada
     comp = pd.DataFrame(rows).sort_values(by=metric_primary, ascending=False)
@@ -226,6 +362,53 @@ def main():
         y_val, y_pred_val, output_dict=True, zero_division=0
     )).transpose()
     report_df.to_csv("reports/classification_report.csv", index=True)
+
+    # ---------- MLflow: run final del ganador ----------
+    try:
+        # Asegura contexto (si el user ejecuta este script directo, abrimos un run explícito)
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", str(CFG_TRACKING_URI))
+        experiment = os.getenv("MLFLOW_EXPERIMENT_NAME", CFG_EXPERIMENT_NAME)
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(experiment)
+
+        register_model = os.getenv("MLFLOW_REGISTER", "0") == "1"
+        with mlflow.start_run(run_name=f"winner::{best_overall_type}"):
+            # Params del ganador
+            mlflow.log_params(_flatten_dict({
+                "global": params_all,
+                "winner": {
+                    "model_type": best_overall_type,
+                },
+                "best_params": metrics_json.get("best_params", {}),
+            }))
+            # Métricas del ganador
+            for k, v in (best_overall_metrics or {}).items():
+                try:
+                    mlflow.log_metric(k, float(v))
+                except Exception:
+                    pass
+            # Artefactos finales
+            for p in [
+                Path("params.yaml"),
+                Path("dvc.yaml"),
+                Path("reports/final_model_comparison.csv"),
+                Path("reports/metrics.json"),
+                Path("reports/classification_report.csv"),
+            ]:
+                if p.exists():
+                    mlflow.log_artifact(str(p))
+            # Modelo final + (opcional) Model Registry
+            if register_model:
+                mlflow.sklearn.log_model(
+                    sk_model=best_overall,
+                    artifact_path="model",
+                    registered_model_name="Obesity_Classification",
+                )
+            else:
+                mlflow.sklearn.log_model(sk_model=best_overall, artifact_path="model")
+    except Exception as _e:
+        print(f"[WARN] MLflow (winner): {_e}")
+    # ---------- fin MLflow run final ----------
 
     print("[OK] Comparativa guardada en reports/final_model_comparison.csv")
     print(f"[OK] Mejor modelo: {best_overall_type} ({metric_primary}={best_overall_score:.4f})")
