@@ -10,3 +10,10 @@ __pycache__/
 reports/confusion_matrix.png
 reports/classification_report_test.csv
 reports/y_true_pred.csv
+
+/hpo/
+/figures/
+/mlflow_runs.csv
+/final_model_comparison.csv
+/classification_report.csv
+/metrics.json

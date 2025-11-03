@@ -115,30 +115,72 @@ def _hpo_and_fit(pipe, X_tr, y_tr, model_type: str, model_cfg: Dict[str, Any], t
     return best, best_params_clean
 
 
-def _build_pipe_with_estimator(features_cfg: Dict[str, Any], model_cfg: Dict[str, Any], base_estimator):
+def _build_pipe_with_estimator(
+    features_cfg: Dict[str, Any],
+    model_cfg: Dict[str, Any],
+    base_estimator,
+    X_sample: pd.DataFrame,
+):
     """
-    Intenta construir el pipeline pasando 'estimator=...' si tu build_pipeline lo soporta.
-    Si no, hace fallback: construye y luego sustituye 'clf'.
+    Construye un pipeline y fuerza la sustitución del clasificador por `base_estimator`.
+    Si `build_pipeline` no está disponible/compatible, genera un preprocesador
+    (num + cat) en base a los dtypes de X_sample y devuelve:
+        Pipeline([('pre', ColumnTransformer(...)), ('clf', base_estimator)])
     """
+    # 1) Intento con firma nueva (si tu build_pipeline lo soporta)
     try:
-        pipe = build_pipeline(features_cfg, model_cfg, estimator=base_estimator)  # firma nueva
+        pipe = build_pipeline(features_cfg, model_cfg, estimator=base_estimator)
         return pipe
     except TypeError:
-        # Firma antigua: build_pipeline(features_cfg, model_cfg) y luego sustituimos el clf
-        pipe = build_pipeline(features_cfg, model_cfg)
+        pass  # cae al plan 2
+    except ValueError:
+        pass
+
+    # 2) Fallback “seguro”: intentar construir con tipo soportado y reemplazar clf
+    safe_cfg = dict(model_cfg)
+    safe_cfg["type"] = "logreg"  # ajusta si tu pipeline soporta otro "seguro"
+    try:
+        pipe = build_pipeline(features_cfg, safe_cfg)
         try:
             pipe.set_params(clf=base_estimator)
-        except ValueError:
-            # Si el paso no se llama 'clf' por alguna refactorización, fuerza el reemplazo
+            return pipe
+        except Exception:
             from sklearn.pipeline import Pipeline as SkPipeline
-            steps = list(pipe.steps)
-            # reemplaza el último paso por el estimador
-            if steps and steps[-1][0] != "clf":
+            steps = list(getattr(pipe, "steps", []))
+            if steps:
                 steps[-1] = ("clf", base_estimator)
-            else:
-                steps[-1] = ("clf", base_estimator)
-            pipe = SkPipeline(steps=steps)
-        return pipe
+                return SkPipeline(steps=steps)
+    except Exception:
+        pass  # caemos al plan 3 (preprocesador data-driven)
+
+    # 3) Fallback “data-driven”: construir preprocesador con dtypes de X_sample
+    from sklearn.compose import ColumnTransformer
+    from sklearn.pipeline import Pipeline as SkPipeline
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+    num_cols = list(X_sample.select_dtypes(include=["number"]).columns)
+    cat_cols = [c for c in X_sample.columns if c not in num_cols]
+
+    # Compatibilidad sklearn: sparse_output (>=1.2) vs sparse (<=1.1)
+    try:
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    except TypeError:
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
+
+    pre = ColumnTransformer(
+        transformers=[
+            ("num", StandardScaler(with_mean=False), num_cols),
+            ("cat", ohe, cat_cols),
+        ],
+        remainder="drop",
+        n_jobs=None,
+    )
+
+    pipe = SkPipeline(steps=[
+        ("pre", pre),
+        ("clf", base_estimator),
+    ])
+    return pipe
 
 
 # --------------------------
@@ -225,7 +267,7 @@ def main():
         mc["type"] = mtype
 
         base_est = build_estimator(mc)
-        pipe = _build_pipe_with_estimator(features_cfg, mc, base_est)
+        pipe = _build_pipe_with_estimator(features_cfg, mc, base_est, X_tr)
 
         # HPO (si aplica) + fit
         best_model, best_params = _hpo_and_fit(pipe, X_tr, y_tr, mtype, mc, target_cfg)
@@ -254,24 +296,31 @@ def main():
                 },
                 "best_params": best_params or {},
             }
-            mlflow.log_params(_flatten_dict(run_params))
-            for k, v in metrics_val.items():
-                try:
-                    mlflow.log_metric(k, float(v))
-                except Exception:
-                    pass
 
-            # Artefactos ligeros
-            artifacts = [
-                Path("params.yaml"),
-                Path("dvc.yaml"),
-            ]
-            for p in artifacts:
-                if p.exists():
-                    mlflow.log_artifact(str(p))
-            # (Opcional) subir el modelo del candidato como artefacto del run
-            if Path(out_path).exists():
-                mlflow.log_artifact(out_path)
+            tracking_uri = os.getenv("MLFLOW_TRACKING_URI", str(CFG_TRACKING_URI))
+            experiment   = os.getenv("MLFLOW_EXPERIMENT_NAME", CFG_EXPERIMENT_NAME)
+            mlflow.set_tracking_uri(tracking_uri)
+            mlflow.set_experiment(experiment)
+
+            with mlflow.start_run(run_name=f"{mtype}"):
+                mlflow.log_params(_flatten_dict(run_params))
+                for k, v in metrics_val.items():
+                    try:
+                        mlflow.log_metric(k, float(v))
+                    except Exception:
+                        pass
+
+                # Artefactos ligeros
+                artifacts = [
+                    Path("params.yaml"),
+                    Path("dvc.yaml"),
+                ]
+                for p in artifacts:
+                    if p.exists():
+                        mlflow.log_artifact(str(p))
+                # (Opcional) subir el modelo del candidato como artefacto del run
+                if Path(out_path).exists():
+                    mlflow.log_artifact(out_path)
         except Exception as _e:
             print(f"[WARN] MLflow (candidato {mtype}): {_e}")
         # ---------- fin MLflow candidato ----------
@@ -317,7 +366,6 @@ def main():
     # ---------- MLflow: run final del ganador ----------
     try:
         # Asegura contexto (si el user ejecuta este script directo, abrimos un run explícito)
-        # Aquí usamos un run independiente para el "winner"
         tracking_uri = os.getenv("MLFLOW_TRACKING_URI", str(CFG_TRACKING_URI))
         experiment = os.getenv("MLFLOW_EXPERIMENT_NAME", CFG_EXPERIMENT_NAME)
         mlflow.set_tracking_uri(tracking_uri)
