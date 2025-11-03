@@ -74,12 +74,12 @@ stages:
       size: 2637
     - path: obesity_estimator/modeling/train_all.py
       hash: md5
-      md5: 55654b2b1550a7ed6157a3411da15444
-      size: 8383
+      md5: 1ace08e51e5f81c2cf80dd226e160639
+      size: 14938
     - path: obesity_estimator/pipeline.py
       hash: md5
-      md5: ca28efc1be99065c57f44c65b72aab4d
-      size: 7917
+      md5: a44cc47da978261410c949a16cb5d315
+      size: 6043
     - path: params.yaml
       hash: md5
       md5: 6b0d966d709ab1290f6dca7c8ca04a91
@@ -209,25 +209,25 @@ stages:
     outs:
     - path: models/best_model.joblib
       hash: md5
-      md5: 74cc1f2db5e5b3148b730e731e16780a
-      size: 2821922
+      md5: 396624baac54e078ae394b101bd69497
+      size: 5042889
     - path: reports/classification_report.csv
       hash: md5
-      md5: b8929fccbb4f803f83fb4f352c46c4d3
-      size: 800
+      md5: add7a4267ba2cbb47c8fb84a9baa4701
+      size: 812
     - path: reports/final_model_comparison.csv
       hash: md5
-      md5: 97c3d1190c844c572f7ee066800dd897
-      size: 910
+      md5: 40144a8167383b5d773c6a8be1f08a19
+      size: 914
     - path: reports/hpo
       hash: md5
-      md5: 810c0234c373257a2855a50df98c5da1.dir
-      size: 93821
+      md5: fc0153f6377dc9d05269a95809ec8152.dir
+      size: 93809
       nfiles: 4
     - path: reports/metrics.json
       hash: md5
-      md5: 9f694c7a059525fa965493a77f1d1d4f
-      size: 377
+      md5: 62e52f62e624d899711991e7a9ef78d0
+      size: 378
   evaluation:
     cmd: PYTHONPATH=. python obesity_estimator/modeling/predict.py
     deps:
@@ -237,8 +237,8 @@ stages:
       size: 259884
     - path: models/best_model.joblib
       hash: md5
-      md5: 74cc1f2db5e5b3148b730e731e16780a
-      size: 2821922
+      md5: 396624baac54e078ae394b101bd69497
+      size: 5042889
     - path: obesity_estimator/modeling/predict.py
       hash: md5
       md5: 0fb5fe9477dd9abde4547244876dbfca
@@ -291,20 +291,20 @@ stages:
     outs:
     - path: reports/classification_report_test.csv
       hash: md5
-      md5: b8929fccbb4f803f83fb4f352c46c4d3
-      size: 800
+      md5: add7a4267ba2cbb47c8fb84a9baa4701
+      size: 812
     - path: reports/confusion_matrix.png
       hash: md5
-      md5: d72a6e9a72a77cccc7575818cfe60d4e
-      size: 69070
+      md5: 9527a212613c49f2e3bf6d9d3453446c
+      size: 68935
     - path: reports/evaluation_results.csv
       hash: md5
-      md5: c524c8b40c1ac865950f2ffb193aeda8
+      md5: 3d5955cdfd72d45714b92c661970cdac
       size: 154
     - path: reports/y_true_pred.csv
       hash: md5
-      md5: cff430a7ca71fa807722f43e71db9a8c
-      size: 21509
+      md5: 539ba632e5d1b2a277188ac619b22fa5
+      size: 21523
   model_plots:
     cmd: PYTHONPATH=. python obesity_estimator/modeling/plot_curves.py
     deps:
@@ -314,8 +314,8 @@ stages:
       size: 259884
     - path: models/best_model.joblib
       hash: md5
-      md5: 74cc1f2db5e5b3148b730e731e16780a
-      size: 2821922
+      md5: 396624baac54e078ae394b101bd69497
+      size: 5042889
     - path: obesity_estimator/modeling/plot_curves.py
       hash: md5
       md5: d80e20fca106dc27e3c672640342b900
@@ -327,14 +327,14 @@ stages:
     outs:
     - path: reports/figures/models
       hash: md5
-      md5: edf4136441cd993c230dfac5407fb2f5.dir
-      size: 224259
+      md5: 14c734cdcc6b86d2633c0a413bd6cc94.dir
+      size: 226454
       nfiles: 4
     - path: reports/pr_auc_by_model.csv
       hash: md5
-      md5: 7c1253092d760f6389c453a0e2769c2f
+      md5: 2d8a8fdf552190beb8503797202bdbd9
       size: 73
     - path: reports/roc_auc_by_model.csv
       hash: md5
-      md5: a7ad7614c21c6c87206807ebce6f740a
+      md5: 73e6c58aa549032c974035899aae0946
       size: 83
