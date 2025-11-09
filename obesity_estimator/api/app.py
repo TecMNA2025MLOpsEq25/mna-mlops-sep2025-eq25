@@ -21,6 +21,8 @@ import traceback
 MODEL_PATH = Path("models/best_model.joblib")
 PREPROCESSOR_PATH = Path("data/interim/preprocessor.pkl")
 
+pd.set_option("future.no_silent_downcasting", True)
+
 app = FastAPI(
     title="Obesity Estimator API",
     version="1.0.0",
