@@ -23,7 +23,72 @@ El proyecto se diseñó bajo un enfoque de MLOps, integrando DVC (Data Version C
 
 ---
 
-## 2. Estructura del proyecto (tipo Cookiecutter)
+## 2. API de Predicción
+
+**Ruta del servicio:** `/predict`  
+**Método:** `POST`  
+**Modelo:** `models:/best_model.joblib (versión 1.0.0)`
+
+**Ejecución del servidor**
+
+Para iniciar el servicio localmente con Uvicorn, ejecuta el siguiente comando desde la raíz del proyecto:
+
+```
+uvicorn obesity_estimator.api.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+> **Tip**: El parámetro `--reload` permite recargar automáticamente el servidor al detectar cambios en el código.
+
+Una vez iniciado, la documentación interactiva de la API estará disponible en:
+
+- Swagger UI: http://127.0.0.1:8000/docs
+- OpenAPI JSON: http://127.0.0.1:8000/openapi.json
+
+---
+
+**Ejemplo de entrada:**
+```json
+{
+  "Gender": "Male",
+  "Age": 25,
+  "Height": 1.75,
+  "Weight": 70,
+  "family_history_with_overweight": 1,
+  "FAVC": 0,
+  "FCVC": 2.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": 0,
+  "CH2O": 2.0,
+  "SCC": 0,
+  "FAF": 1.0,
+  "TUE": 1.0,
+  "CALC": "Frequently",
+  "MTRANS": "Walking"
+}
+```
+
+**Ejemplo de respuesta:**
+```json
+{
+  "prediction": "normal_weight",
+  "probabilities": {
+    "insufficient_weight": 1.3e-06,
+    "normal_weight": 0.9987,
+    "obesity_type_i": 1.4e-06,
+    "obesity_type_ii": 1.1e-06,
+    "obesity_type_iii": 1.5e-06,
+    "overweight_level_i": 0.0010,
+    "overweight_level_ii": 0.0002
+  },
+  "model_path": "models/best_model.joblib",
+  "model_version": "1.0.0"
+}
+```
+
+---
+
+## 3. Estructura del proyecto (tipo Cookiecutter)
 
 Aunque se partió del template académico, la estructura se adaptó al estándar **Cookiecutter Data Science**, asegurando claridad y escalabilidad.
 
@@ -70,7 +135,7 @@ mna-mlops-sep2025-eq25/
 
 ---
 
-## 3. Pipeline y etapas principales (DVC)
+## 4. Pipeline y etapas principales (DVC)
 
 El pipeline está definido en [`dvc.yaml`](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/dvc.yaml).  
 Cada stage incluye dependencias, outputs y métricas versionadas.
@@ -86,7 +151,7 @@ Cada stage incluye dependencias, outputs y métricas versionadas.
 
 ---
 
-## 4. Descripción técnica de fases y resultados
+## 5. Descripción técnica de fases y resultados
 
 ### Fase 1 — prepare: Limpieza y validación
 - 2,111 → 2,087 filas tras eliminar duplicados.
@@ -133,7 +198,7 @@ El modelo HistGradientBoosting domina tanto en AUC-ROC (0.972) como en AUC-PR (0
 
 ---
 
-## 5. Ejecución del pipeline completo
+## 6. Ejecución del pipeline completo
 
 ```bash
 python -m venv .venv
@@ -150,7 +215,7 @@ dvc repro
 
 ---
 
-## 6. Resultados comparativos globales
+## 7. Resultados comparativos globales
 
 | Modelo               | F1-macro | Accuracy | ROC-AUC | PR-AUC | Observación    |
 |----------------------|----------|----------|---------|--------|----------------|
@@ -160,7 +225,7 @@ dvc repro
 | Logistic Regression  | 0.918    | 0.921    | 0.924   | 0.926  | Baseline        |
 
 ---
-## 7 Aplicación de Mejores Prácticas de Codificación en el Pipeline de Modelado
+## 8. Aplicación de Mejores Prácticas de Codificación en el Pipeline de Modelado
 
 La etapa de modelado fue rediseñada para incorporar las mejores prácticas de ingeniería de ML:
 
@@ -189,7 +254,7 @@ Interpretabilidad:
 Se añadieron análisis automáticos de feature importance y confusion matrix, guardando las figuras para revisión.
 
 ---
-## 8. Roles del equipo y responsabilidades
+## 9. Roles del equipo y responsabilidades
 
 | Rol               | Nombre               | Responsabilidades principales                                                       |
 |-------------------|----------------------|-------------------------------------------------------------------------------------|
@@ -204,7 +269,7 @@ Trabajo colaborativo vía GitHub PRs, issues y branches, con revisiones cruzadas
 
 ---
 
-## 9. Evidencias de colaboración (GitHub)
+## 10. Evidencias de colaboración (GitHub)
 
 - Commits totales: +70  
 - Pull Requests cerrados: 10  
@@ -223,7 +288,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 10. Métricas clave del proyecto
+## 11. Métricas clave del proyecto
 
 | Tipo              | Métrica     | Valor     | Descripción                                  |
 |-------------------|-------------|-----------|----------------------------------------------|
@@ -236,7 +301,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 11. Conclusiones generales
+## 12. Conclusiones generales
 
 1. Pipeline totalmente reproducible y versionado con DVC.  
 2. HistGradientBoosting ofrece la mejor precisión y estabilidad.  
@@ -246,7 +311,7 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 12. Referencias
+## 13. Referencias
 
 - Provost, F. & Fawcett, T. (2013). *Data Science for Business*.  
 - Chapman et al. (2000). *CRISP-DM 1.0: Step-by-Step Data Mining Guide*.  
