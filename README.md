@@ -88,6 +88,65 @@ Una vez iniciado, la documentación interactiva de la API estará disponible en:
 
 ---
 
+**Despliegue con Docker**
+
+1. **Construir la imagen**
+
+```
+docker build -t servicio-mna-mlops-sep2025-eq25:latest .
+```
+
+2. **Ejecutar el contenedor**
+
+```
+docker run -p 8000:8000 servicio-mna-mlops-sep2025-eq25:latest
+```
+
+3. **Probar el endpoint**
+Una vez que el contenedor esté corriendo, puedes hacer una solicitud de prueba:
+
+```
+curl -X POST "http://127.0.0.1:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "Gender": "Male",
+           "Age": 25,
+           "Height": 1.75,
+           "Weight": 70,
+           "family_history_with_overweight": 1,
+           "FAVC": 0,
+           "FCVC": 2.0,
+           "NCP": 3.0,
+           "CAEC": "Sometimes",
+           "SMOKE": 0,
+           "CH2O": 2.0,
+           "SCC": 0,
+           "FAF": 1.0,
+           "TUE": 1.0,
+           "CALC": "Frequently",
+           "MTRANS": "Walking"
+         }'
+```
+
+---
+
+**Publicación en DockerHub**
+Puedes publicar la imagen en tu cuenta de DockerHub con tags versionados:
+
+```
+docker tag servicio-mna-mlops-sep2025-eq25:latest <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.0.0
+docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.0.0
+```
+
+Para versiones futuras:
+
+```
+docker tag servicio-mna-mlops-sep2025-eq25:latest <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
+docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
+```
+
+---
+
 ## 3. Estructura del proyecto (tipo Cookiecutter)
 
 Aunque se partió del template académico, la estructura se adaptó al estándar **Cookiecutter Data Science**, asegurando claridad y escalabilidad.
