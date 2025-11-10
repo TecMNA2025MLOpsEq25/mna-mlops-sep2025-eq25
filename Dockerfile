@@ -33,6 +33,7 @@ COPY --from=base /usr/local/bin /usr/local/bin
 # Copia el código fuente y el modelo
 COPY obesity_estimator/ obesity_estimator/
 COPY models/ models/
+COPY data/interim/preprocessor.pkl data/interim/preprocessor.pkl
 COPY params.yaml .
 COPY dvc.yaml .
 COPY README.md .
