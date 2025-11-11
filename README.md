@@ -269,22 +269,22 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
 }``` |
 | **Obesity_Type_III** | ```json
 {
-  "Gender": "Male",
-  "Age": 45.0,
+  "Gender": "Female",
+  "Age": 20.0,
   "Height": 1.65,
-  "Weight": 145.0,
+  "Weight": 165.0,
   "family_history_with_overweight": "yes",
   "FAVC": "yes",
-  "FCVC": 1.0,
-  "NCP": 4.0,
+  "FCVC": 3.0,
+  "NCP": 3.0,
   "CAEC": "Always",
   "SMOKE": "no",
   "CH2O": 1.0,
   "SCC": "no",
-  "FAF": 0.0,
-  "TUE": 0.0,
-  "CALC": "Always",
-  "MTRANS": "Automobile"
+  "FAF": 1.9,
+  "TUE": 2.0,
+  "CALC": "Sometimes",
+  "MTRANS": "Public_Transportation"
 }``` |
 
 #### Casos inválidos (errores esperados)
