@@ -145,6 +145,165 @@ docker tag servicio-mna-mlops-sep2025-eq25:latest <tu_usuario>/servicio-mna-mlop
 docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
 ```
 
+**Casos de prueba del endpoint `/predict`**
+
+A continuación se listan ejemplos representativos de entrada válidos para cada categoría de la variable objetivo, así como algunos casos negativos utilizados para validar el manejo de errores.
+
+#### Casos válidos (predicciones esperadas por clase)
+
+| Categoría esperada         | Ejemplo de entrada JSON |
+|----------------------------|--------------------------|
+| **Insufficient_Weight** | ```json
+{
+  "Gender": "Female",
+  "Age": 20.0,
+  "Height": 1.70,
+  "Weight": 48.0,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 3.0,
+  "NCP": 3.0,
+  "CAEC": "no",
+  "SMOKE": "no",
+  "CH2O": 3.0,
+  "SCC": "no",
+  "FAF": 3.0,
+  "TUE": 1.0,
+  "CALC": "no",
+  "MTRANS": "Walking"
+}``` |
+| **Normal_Weight** | ```json
+{
+  "Gender": "Female",
+  "Age": 21.0,
+  "Height": 1.62,
+  "Weight": 64.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "no",
+  "FCVC": 2.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 1.0,
+  "CALC": "no",
+  "MTRANS": "Public_Transportation"
+}``` |
+| **Overweight_Level_I** | ```json
+{
+  "Gender": "Male",
+  "Age": 27.0,
+  "Height": 1.80,
+  "Weight": 87.0,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 3.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 2.0,
+  "TUE": 0.0,
+  "CALC": "Frequently",
+  "MTRANS": "Walking"
+}``` |
+| **Overweight_Level_II** | ```json
+{
+  "Gender": "Male",
+  "Age": 22.0,
+  "Height": 1.78,
+  "Weight": 89.8,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 2.0,
+  "NCP": 1.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Sometimes",
+  "MTRANS": "Public_Transportation"
+}``` |
+| **Obesity_Type_I** | ```json
+{
+  "Gender": "Male",
+  "Age": 35.0,
+  "Height": 1.70,
+  "Weight": 105.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 1.0,
+  "NCP": 4.0,
+  "CAEC": "Frequently",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Always",
+  "MTRANS": "Automobile"
+}``` |
+| **Obesity_Type_II** | ```json
+{
+  "Gender": "Male",
+  "Age": 40.0,
+  "Height": 1.68,
+  "Weight": 120.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 1.0,
+  "NCP": 4.0,
+  "CAEC": "Always",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Always",
+  "MTRANS": "Automobile"
+}``` |
+| **Obesity_Type_III** | ```json
+{
+  "Gender": "Male",
+  "Age": 45.0,
+  "Height": 1.65,
+  "Weight": 145.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 1.0,
+  "NCP": 4.0,
+  "CAEC": "Always",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Always",
+  "MTRANS": "Automobile"
+}``` |
+
+#### Casos inválidos (errores esperados)
+
+| Tipo de error | Ejemplo JSON | Resultado esperado |
+|----------------|---------------|--------------------|
+| Campo faltante | ```json
+{ "Gender": "Male", "Age": 25.0, "Height": 1.75 }
+``` | `422 Unprocessable Entity` |
+| Tipo de dato incorrecto | ```json
+{ "Age": "twenty", "Height": "1.70" }
+``` | `422 Unprocessable Entity` |
+| Valor fuera de dominio | ```json
+{ "Gender": "Alien", "MTRANS": "Teleportation" }
+``` | `400 Bad Request` o `422 Unprocessable Entity` |
+
+> **Nota:**  
+> Estos ejemplos se usan en las pruebas automatizadas (`test_api.py`) para validar la correcta respuesta del modelo y asegurar que cada categoría de salida se puede predecir satisfactoriamente.
+
 ---
 
 ## 3. Estructura del proyecto (tipo Cookiecutter)
