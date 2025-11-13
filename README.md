@@ -47,7 +47,7 @@ Una vez iniciado, la documentación interactiva de la API estará disponible en:
 ---
 
 **Ejemplo de entrada:**
-```json
+```
 {
   "Gender": "Male",
   "Age": 25,
@@ -69,7 +69,7 @@ Una vez iniciado, la documentación interactiva de la API estará disponible en:
 ```
 
 **Ejemplo de respuesta:**
-```json
+```
 {
   "prediction": "normal_weight",
   "probabilities": {
@@ -149,11 +149,9 @@ docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
 
 A continuación se listan ejemplos representativos de entrada válidos para cada categoría de la variable objetivo, así como algunos casos negativos utilizados para validar el manejo de errores.
 
-#### Casos válidos (predicciones esperadas por clase)
-
-| Categoría esperada         | Ejemplo de entrada JSON |
-|----------------------------|--------------------------|
-| **Insufficient_Weight** | ```json
+**Insufficient_Weight**
+----
+```json
 {
   "Gender": "Female",
   "Age": 20.0,
@@ -171,8 +169,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 1.0,
   "CALC": "no",
   "MTRANS": "Walking"
-}``` |
-| **Normal_Weight** | ```json
+}
+```
+
+**Normal_Weight**
+----
+```json
 {
   "Gender": "Female",
   "Age": 21.0,
@@ -190,8 +192,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 1.0,
   "CALC": "no",
   "MTRANS": "Public_Transportation"
-}``` |
-| **Overweight_Level_I** | ```json
+}
+```
+
+**Overweight_Level_I**
+----
+```json
 {
   "Gender": "Male",
   "Age": 27.0,
@@ -209,8 +215,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 0.0,
   "CALC": "Frequently",
   "MTRANS": "Walking"
-}``` |
-| **Overweight_Level_II** | ```json
+}
+```
+
+**Overweight_Level_II**
+----
+```json
 {
   "Gender": "Male",
   "Age": 22.0,
@@ -228,8 +238,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 0.0,
   "CALC": "Sometimes",
   "MTRANS": "Public_Transportation"
-}``` |
-| **Obesity_Type_I** | ```json
+}
+```
+
+**Obesity_Type_I**
+----
+```json
 {
   "Gender": "Male",
   "Age": 35.0,
@@ -247,8 +261,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 0.0,
   "CALC": "Always",
   "MTRANS": "Automobile"
-}``` |
-| **Obesity_Type_II** | ```json
+}
+```
+
+**Obesity_Type_II**
+----
+```json
 {
   "Gender": "Male",
   "Age": 40.0,
@@ -266,8 +284,12 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 0.0,
   "CALC": "Always",
   "MTRANS": "Automobile"
-}``` |
-| **Obesity_Type_III** | ```json
+}
+```
+
+**Obesity_Type_III**
+----
+```json
 {
   "Gender": "Female",
   "Age": 20.0,
@@ -285,21 +307,16 @@ A continuación se listan ejemplos representativos de entrada válidos para cada
   "TUE": 2.0,
   "CALC": "Sometimes",
   "MTRANS": "Public_Transportation"
-}``` |
+}
+```
 
 #### Casos inválidos (errores esperados)
 
 | Tipo de error | Ejemplo JSON | Resultado esperado |
 |----------------|---------------|--------------------|
-| Campo faltante | ```json
-{ "Gender": "Male", "Age": 25.0, "Height": 1.75 }
-``` | `422 Unprocessable Entity` |
-| Tipo de dato incorrecto | ```json
-{ "Age": "twenty", "Height": "1.70" }
-``` | `422 Unprocessable Entity` |
-| Valor fuera de dominio | ```json
-{ "Gender": "Alien", "MTRANS": "Teleportation" }
-``` | `400 Bad Request` o `422 Unprocessable Entity` |
+| Campo faltante | `{ "Gender": "Male", "Age": 25.0, "Height": 1.75 }` | `422 Unprocessable Entity` |
+| Tipo de dato incorrecto | `{ "Age": "twenty", "Height": "1.70" } ` | `422 Unprocessable Entity` |
+| Valor fuera de dominio | `{ "Gender": "Alien", "MTRANS": "Teleportation" }` | `400 Bad Request` o `422 Unprocessable Entity` |
 
 > **Nota:**  
 > Estos ejemplos se usan en las pruebas automatizadas (`test_api.py`) para validar la correcta respuesta del modelo y asegurar que cada categoría de salida se puede predecir satisfactoriamente.
