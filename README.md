@@ -1,197 +1,660 @@
 # Proyecto MLOps — Clasificación del Nivel de Obesidad
 
-Repositorio oficial del proyecto de clasificación de obesidad utilizando técnicas de Machine Learning y principios de MLOps.  
-Desarrollado por **Equipo 25 - MNA 2025, Tecnológico de Monterrey**.
+Repositorio oficial del proyecto de clasificación del nivel de obesidad utilizando técnicas de Machine Learning y principios de MLOps.  
+Desarrollado por **Equipo 25 — Maestría en Inteligencia Artificial Aplicada (MNA 2025), Tecnológico de Monterrey**.
 
-Repositorio: [TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/tree/master)
+Repositorio: [TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25)
 
 ---
 
 ## 1. Propósito y contexto
 
-El objetivo del proyecto es construir un pipeline reproducible de aprendizaje automático que permita clasificar el nivel de obesidad de una persona con base en sus hábitos alimenticios, actividad física y características antropométricas.
+El objetivo del proyecto es construir un pipeline reproducible de aprendizaje automático para clasificar el nivel de obesidad de una persona a partir de sus hábitos alimenticios, actividad física y características antropométricas.
 
-El flujo completo está diseñado bajo prácticas de MLOps, utilizando DVC (Data Version Control) para controlar dependencias, versionar datos, registrar métricas y reproducir los experimentos con un solo comando (`dvc repro`).
+El proyecto se diseñó bajo un enfoque de MLOps, integrando DVC (Data Version Control) para gestionar datos, dependencias, métricas y versiones de modelos, asegurando trazabilidad y reproducibilidad.
 
-El proyecto se alinea con buenas prácticas de ingeniería de datos y aprendizaje de máquina:
-- Limpieza y preparación sistemática de datos.
-- Modularización por etapas (`prepare`, `eda`, `preprocessing`, `training`, `evaluation`, `model_plots`).
-- Evaluación automática de modelos y trazabilidad de métricas.
-- Visualización e interpretación final de los resultados.
+**Principios aplicados:**
+- Separación modular por etapas y responsabilidades.
+- Versionado de datos y modelos con DVC.
+- Refactorización y buenas prácticas de código.
+- Registro automático de métricas y visualizaciones.
+- Reproducibilidad total mediante `dvc repro`.
 
----
-
-## 2. Estructura general del pipeline (DVC)
-
-El pipeline se encuentra definido en el archivo [`dvc.yaml`](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/dvc.yaml):
-
-| Etapa | Script | Descripción | Entradas | Salidas |
-|-------|---------|-------------|-----------|----------|
-| **prepare** | `obesity_estimator/dataset.py` | Limpieza de datos, eliminación de duplicados y outliers. | `data/raw/obesity_estimation_modified.csv` | `data/processed/obesity_estimation_clean.csv` |
-| **eda** | `obesity_estimator/plots.py` | Análisis exploratorio de datos (EDA): distribuciones, correlaciones y visualizaciones. | Datos procesados | `reports/figures/eda/*` |
-| **preprocessing** | `obesity_estimator/features.py` | Codificación de variables, escalado, división Train/Test y guardado del pipeline. | Datos procesados | `data/interim/*`, `preprocessor.pkl` |
-| **training** | `obesity_estimator/modeling/train.py` | Entrenamiento y ajuste de hiperparámetros con GridSearchCV y RandomizedSearchCV. | Datos preprocesados | `models/*.joblib`, `reports/metrics.json` |
-| **evaluation** | `obesity_estimator/modeling/predict.py` | Evaluación y generación de métricas finales, matriz de confusión y comparativa. | Modelos entrenados | `reports/evaluation_results.csv`, `reports/confusion_matrix.png` |
-| **model_plots** | `obesity_estimator/modeling/plot_curves.py` | Curvas ROC y PR para cada modelo y comparativas globales. | Modelos + test | `reports/figures/models/*`, `reports/roc_auc_by_model.csv`, `reports/pr_auc_by_model.csv` |
 
 ---
 
-## 3. Fases del pipeline: descripción técnica y análisis de resultados
+## 2. API de Predicción
 
-### Fase 1: prepare — Limpieza y validación de datos
-**Objetivo:** garantizar la integridad del conjunto de datos y eliminar registros duplicados o inconsistentes.
+**Ruta del servicio:** `/predict`  
+**Método:** `POST`  
+**Modelo:** `models:/best_model.joblib (versión 1.0.0)`
 
-- Operaciones realizadas:
-  - Carga del archivo original `data/raw/obesity_estimation_modified.csv`.
-  - Eliminación de 24 registros duplicados.
-  - Validación de tipos de datos y valores atípicos.
-  - Exportación del dataset limpio a `data/processed/obesity_estimation_clean.csv`.
+**Ejecución del servidor**
 
-**Resultados clave:**
-- Tamaño inicial: 2,111 filas → Final: 2,087 filas.
-- Sin pérdida de variables críticas.
-- Balance conservado entre clases de “NObeyesdad”.
+Para iniciar el servicio localmente con Uvicorn, ejecuta el siguiente comando desde la raíz del proyecto:
 
-**Conclusión:** el dataset quedó consistente para el modelado sin introducir sesgo o pérdida de información.
+```
+uvicorn obesity_estimator.api.app:app --reload --host 0.0.0.0 --port 8000
+```
 
----
+> **Tip**: El parámetro `--reload` permite recargar automáticamente el servidor al detectar cambios en el código.
 
-### Fase 2: eda — Exploratory Data Analysis
-**Objetivo:** comprender la distribución, relaciones y patrones entre las variables.
+Una vez iniciado, la documentación interactiva de la API estará disponible en:
 
-- Acciones principales:
-  - Generación automática de histogramas y conteos de categorías.
-  - Análisis de correlaciones numéricas con la variable objetivo.
-  - Cálculo de estadísticas descriptivas (`numeric_summary.csv`, `categorical_summary.csv`).
-  - Visualización de relaciones con la variable target (`num_vs_target.png`, `cat_vs_target_*.png`).
-
-**Hallazgos importantes:**
-- Edad y peso muestran correlaciones positivas con el tipo de obesidad.
-- Variables conductuales como FAF (actividad física) y FAVC (consumo de comida calórica) influyen significativamente.
-- Las clases de género y medio de transporte (MTRANS) presentan diferencias notables.
-
-**Ejemplos de visualizaciones:**
-![Distribución Peso](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/reports/figures/eda/dist_Weight.png)
-![Conteo por género](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/reports/figures/eda/cat_count_Gender.png)
-
-**Conclusión:** el EDA permitió identificar los predictores más influyentes y validar la diversidad de clases, asegurando un modelo robusto.
+- Swagger UI: http://127.0.0.1:8000/docs
+- OpenAPI JSON: http://127.0.0.1:8000/openapi.json
 
 ---
 
-### Fase 3: preprocessing — Codificación, escalado y división de datos
-**Objetivo:** transformar los datos para hacerlos compatibles con los modelos de aprendizaje automático.
+**Ejemplo de entrada:**
+```
+{
+  "Gender": "Male",
+  "Age": 25,
+  "Height": 1.75,
+  "Weight": 70,
+  "family_history_with_overweight": 1,
+  "FAVC": 0,
+  "FCVC": 2.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": 0,
+  "CH2O": 2.0,
+  "SCC": 0,
+  "FAF": 1.0,
+  "TUE": 1.0,
+  "CALC": "Frequently",
+  "MTRANS": "Walking"
+}
+```
 
-- Tareas implementadas:
-  - Codificación One-Hot de variables categóricas (Gender, CAEC, CALC, MTRANS).
-  - Normalización de variables numéricas.
-  - División estratificada en conjuntos train (70%) y test (30%).
-  - Serialización del preprocesador (preprocessor.pkl).
-
-**Resultados:**
-- 24 columnas finales tras la transformación.
-- train_prepared.csv (1460 filas) y test_prepared.csv (627 filas).
-
-**Conclusión:** la preparación mantuvo la proporción de clases y estandarizó los valores, optimizando el rendimiento de los modelos.
-
----
-
-### Fase 4: training — Entrenamiento y ajuste de hiperparámetros
-**Objetivo:** encontrar el modelo con mejor capacidad de generalización mediante búsqueda de hiperparámetros.
-
-**Modelos evaluados:**
-1. Logistic Regression — baseline, regularización L2.  
-2. Random Forest — optimización de profundidad y número de árboles.  
-3. HistGradientBoosting — ajuste de learning rate y número de iteraciones.  
-4. SVC (RBF) — búsqueda sobre C y gamma.
-
-**Método de ajuste:**
-- GridSearchCV si combinaciones ≤ 250.
-- RandomizedSearchCV si combinaciones > 250.
-- Validación cruzada k=5, métrica principal: F1-macro.
-
-**Resultados:**
-| Modelo | F1-macro | ROC-AUC | Observación |
-|---------|-----------|----------|--------------|
-| HistGradientBoosting | 0.9673 | 0.972 | Mejor equilibrio entre precisión y recall, sin sobreajuste. |
-| Random Forest | 0.952 | 0.962 | Ligeramente más variable, buena estabilidad. |
-| SVC (RBF) | 0.935 | 0.941 | Precisión alta, sensibilidad menor. |
-| Logistic Regression | 0.918 | 0.924 | Modelo base, mayor sesgo. |
-
-**Conclusión:**  
-El modelo HistGradientBoosting obtuvo la mejor métrica F1 y AUC, mostrando excelente generalización. No se observa sobreentrenamiento, ya que las métricas de validación y prueba son consistentes.
-
----
-
-### Fase 5: evaluation — Evaluación y métricas finales
-**Objetivo:** comparar los modelos entrenados y analizar el desempeño del mejor clasificador.
-
-**Resultados generados:**
-- evaluation_results.csv: contiene precisión, recall y F1 por modelo.
-- confusion_matrix.png: matriz visual de desempeño global.
-
-![Matriz de confusión](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/reports/confusion_matrix.png)
-
-**Interpretación:**
-- Excelente rendimiento en clases extremas como Obesity Type III e Insufficient Weight.
-- Las confusiones se concentran en las clases intermedias (Overweight I/II).
-- El recall superior al 0.96 confirma buena cobertura de todas las clases.
-
----
-
-### Fase 6: model_plots — Curvas ROC y PR
-**Objetivo:** analizar visualmente la discriminación y precisión de cada modelo.
-
-**Archivos generados:**
-- reports/figures/models/roc_macro_compare.png
-- reports/figures/models/pr_macro_compare.png
-- reports/roc_auc_by_model.csv
-- reports/pr_auc_by_model.csv
-
-**Resultados visuales:**
-![ROC comparativa](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/reports/figures/models/roc_macro_compare.png)
-![PR comparativa](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/reports/figures/models/pr_macro_compare.png)
-
-**Conclusión:**  
-El modelo HistGradientBoosting domina tanto en AUC-ROC (0.972) como en AUC-PR (0.970), confirmando su robustez.
-
----
-
-## 4. Ejecución del pipeline completo
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-dvc repro
+**Ejemplo de respuesta:**
+```
+{
+  "prediction": "normal_weight",
+  "probabilities": {
+    "insufficient_weight": 1.3e-06,
+    "normal_weight": 0.9987,
+    "obesity_type_i": 1.4e-06,
+    "obesity_type_ii": 1.1e-06,
+    "obesity_type_iii": 1.5e-06,
+    "overweight_level_i": 0.0010,
+    "overweight_level_ii": 0.0002
+  },
+  "model_path": "models/best_model.joblib",
+  "model_version": "1.0.0"
+}
 ```
 
 ---
 
-## 5. Evaluación del desempeño general
+**Despliegue con Docker**
 
-| Modelo | F1-macro | Accuracy | ROC-AUC | PR-AUC | Observación |
-|---------|-----------|----------|----------|----------|--------------|
-| HistGradientBoosting | 0.9673 | 0.969 | 0.972 | 0.970 | Modelo final, sin sobreentrenamiento. |
-| Random Forest | 0.952 | 0.958 | 0.962 | 0.957 | Buen recall, ligera varianza. |
-| SVC (RBF) | 0.935 | 0.942 | 0.941 | 0.940 | Precisión alta, menor recall. |
-| Logistic Regression | 0.918 | 0.921 | 0.924 | 0.926 | Baseline. |
+1. **Construir la imagen**
+
+```
+docker build -t servicio-mna-mlops-sep2025-eq25:latest .
+```
+
+2. **Ejecutar el contenedor**
+
+```
+docker run -p 8000:8000 servicio-mna-mlops-sep2025-eq25:latest
+```
+
+3. **Probar el endpoint**
+Una vez que el contenedor esté corriendo, puedes hacer una solicitud de prueba:
+
+```
+curl -X POST "http://127.0.0.1:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "Gender": "Male",
+           "Age": 25,
+           "Height": 1.75,
+           "Weight": 70,
+           "family_history_with_overweight": 1,
+           "FAVC": 0,
+           "FCVC": 2.0,
+           "NCP": 3.0,
+           "CAEC": "Sometimes",
+           "SMOKE": 0,
+           "CH2O": 2.0,
+           "SCC": 0,
+           "FAF": 1.0,
+           "TUE": 1.0,
+           "CALC": "Frequently",
+           "MTRANS": "Walking"
+         }'
+```
 
 ---
 
-## 6. Conclusiones generales
+**Publicación en DockerHub**
+Puedes publicar la imagen en tu cuenta de DockerHub con tags versionados:
 
-1. DVC garantiza la trazabilidad completa de los datos, métricas y modelos.  
-2. HistGradientBoosting ofrece la mejor relación entre precisión y recall.  
-3. El análisis EDA permitió comprender el peso relativo de cada variable.  
-4. La modularidad del código permite extender nuevas fuentes de datos y modelos.  
-5. El pipeline es reproducible y escalable para despliegue en entornos productivos.
+```
+docker tag servicio-mna-mlops-sep2025-eq25:latest <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.0.0
+docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.0.0
+```
+
+Para versiones futuras:
+
+```
+docker tag servicio-mna-mlops-sep2025-eq25:latest <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
+docker push <tu_usuario>/servicio-mna-mlops-sep2025-eq25:v1.1.0
+```
+
+**Casos de prueba del endpoint `/predict`**
+
+A continuación se listan ejemplos representativos de entrada válidos para cada categoría de la variable objetivo, así como algunos casos negativos utilizados para validar el manejo de errores.
+
+**Insufficient_Weight**
+----
+```json
+{
+  "Gender": "Female",
+  "Age": 20.0,
+  "Height": 1.70,
+  "Weight": 48.0,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 3.0,
+  "NCP": 3.0,
+  "CAEC": "no",
+  "SMOKE": "no",
+  "CH2O": 3.0,
+  "SCC": "no",
+  "FAF": 3.0,
+  "TUE": 1.0,
+  "CALC": "no",
+  "MTRANS": "Walking"
+}
+```
+
+**Normal_Weight**
+----
+```json
+{
+  "Gender": "Female",
+  "Age": 21.0,
+  "Height": 1.62,
+  "Weight": 64.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "no",
+  "FCVC": 2.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 1.0,
+  "CALC": "no",
+  "MTRANS": "Public_Transportation"
+}
+```
+
+**Overweight_Level_I**
+----
+```json
+{
+  "Gender": "Male",
+  "Age": 27.0,
+  "Height": 1.80,
+  "Weight": 87.0,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 3.0,
+  "NCP": 3.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 2.0,
+  "TUE": 0.0,
+  "CALC": "Frequently",
+  "MTRANS": "Walking"
+}
+```
+
+**Overweight_Level_II**
+----
+```json
+{
+  "Gender": "Male",
+  "Age": 22.0,
+  "Height": 1.78,
+  "Weight": 89.8,
+  "family_history_with_overweight": "no",
+  "FAVC": "no",
+  "FCVC": 2.0,
+  "NCP": 1.0,
+  "CAEC": "Sometimes",
+  "SMOKE": "no",
+  "CH2O": 2.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Sometimes",
+  "MTRANS": "Public_Transportation"
+}
+```
+
+**Obesity_Type_I**
+----
+```json
+{
+  "Gender": "Male",
+  "Age": 35.0,
+  "Height": 1.70,
+  "Weight": 105.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 1.0,
+  "NCP": 4.0,
+  "CAEC": "Frequently",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Always",
+  "MTRANS": "Automobile"
+}
+```
+
+**Obesity_Type_II**
+----
+```json
+{
+  "Gender": "Male",
+  "Age": 40.0,
+  "Height": 1.68,
+  "Weight": 120.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 1.0,
+  "NCP": 4.0,
+  "CAEC": "Always",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 0.0,
+  "TUE": 0.0,
+  "CALC": "Always",
+  "MTRANS": "Automobile"
+}
+```
+
+**Obesity_Type_III**
+----
+```json
+{
+  "Gender": "Female",
+  "Age": 20.0,
+  "Height": 1.65,
+  "Weight": 165.0,
+  "family_history_with_overweight": "yes",
+  "FAVC": "yes",
+  "FCVC": 3.0,
+  "NCP": 3.0,
+  "CAEC": "Always",
+  "SMOKE": "no",
+  "CH2O": 1.0,
+  "SCC": "no",
+  "FAF": 1.9,
+  "TUE": 2.0,
+  "CALC": "Sometimes",
+  "MTRANS": "Public_Transportation"
+}
+```
+
+#### Casos inválidos (errores esperados)
+
+| Tipo de error | Ejemplo JSON | Resultado esperado |
+|----------------|---------------|--------------------|
+| Campo faltante | `{ "Gender": "Male", "Age": 25.0, "Height": 1.75 }` | `422 Unprocessable Entity` |
+| Tipo de dato incorrecto | `{ "Age": "twenty", "Height": "1.70" } ` | `422 Unprocessable Entity` |
+| Valor fuera de dominio | `{ "Gender": "Alien", "MTRANS": "Teleportation" }` | `400 Bad Request` o `422 Unprocessable Entity` |
+
+> **Nota:**  
+> Estos ejemplos se usan en las pruebas automatizadas (`test_api.py`) para validar la correcta respuesta del modelo y asegurar que cada categoría de salida se puede predecir satisfactoriamente.
 
 ---
 
-## 7. Próximos pasos
+## 3. Estructura del proyecto (tipo Cookiecutter)
 
-- Integrar FastAPI para servir inferencias.  
-- Configurar CI/CD con GitHub Actions + DVC.  
-- Extender monitoreo con MLflow Tracking.  
-- Desplegar el modelo en un entorno reproducible (Docker/Kubernetes).
+Aunque se partió del template académico, la estructura se adaptó al estándar **Cookiecutter Data Science**, asegurando claridad y escalabilidad.
 
+```
+mna-mlops-sep2025-eq25/
+│
+├── data/
+│   ├── raw/                  # Datos originales
+│   ├── processed/            # Datos limpios
+│   └── interim/              # Datos intermedios
+│
+├── obesity_estimator/        # Código fuente (equivalente a 'src/')
+│   ├── dataset.py            # Limpieza de datos
+│   ├── features.py           # Transformaciones y encoding
+│   ├── plots.py              # EDA y visualizaciones
+│   └── modeling/
+│       ├── train.py          # Entrenamiento y búsqueda de hiperparámetros
+│       ├── predict.py        # Evaluación
+│       └── plot_curves.py    # Curvas ROC y PR
+│
+├── reports/
+│   ├── figures/              # Imágenes generadas
+│   ├── evaluation_results.csv
+│   └── confusion_matrix.png
+│
+├── models/                   # Modelos entrenados (.joblib)
+│
+├── dvc.yaml                  # Pipeline DVC (definición de stages)
+├── params.yaml               # Parámetros centralizados
+├── requirements.txt
+└── README.md
+```
+
+**Mapeo con Cookiecutter:**
+
+| Cookiecutter estándar | Proyecto actual       |
+|-----------------------|-----------------------|
+| `src/`                | `obesity_estimator/`  |
+| `data/raw`            | `data/raw/`           |
+| `data/processed`      | `data/processed/`     |
+| `notebooks/`          | `notebooks/`          |
+| `reports/`            | `reports/`            |
+| `models/`             | `models/`             |
+
+---
+
+## 4. Pipeline y etapas principales (DVC)
+
+El pipeline está definido en [`dvc.yaml`](https://github.com/TecMNA2025MLOpsEq25/mna-mlops-sep2025-eq25/blob/master/dvc.yaml).  
+Cada stage incluye dependencias, outputs y métricas versionadas.
+
+| Etapa | Script | Descripción | Entradas | Salidas |
+|-------|---------|-------------|-----------|----------|
+| **prepare** | `obesity_estimator/dataset.py` | Limpieza de duplicados, outliers y validación de tipos. | `data/raw/obesity_estimation_modified.csv` | `data/processed/obesity_estimation_clean.csv` |
+| **eda** | `obesity_estimator/plots.py` | Análisis exploratorio y generación de gráficos. | Datos procesados | `reports/figures/eda/*` |
+| **preprocessing** | `obesity_estimator/features.py` | Codificación y escalado. Serializa el preprocesador. | Datos procesados | `data/interim/*`, `preprocessor.pkl` |
+| **training** | `obesity_estimator/modeling/train.py` | Entrenamiento y ajuste de hiperparámetros. | Datos preprocesados | `models/*.joblib`, `reports/metrics.json` |
+| **evaluation** | `obesity_estimator/modeling/predict.py` | Evaluación y métricas finales. | Modelos entrenados | `reports/evaluation_results.csv`, `reports/confusion_matrix.png` |
+| **model_plots** | `obesity_estimator/modeling/plot_curves.py` | Curvas ROC y PR comparativas. | Modelos + test | `reports/figures/models/*`, `reports/roc_auc_by_model.csv`, `reports/pr_auc_by_model.csv` |
+
+---
+
+## 5. Descripción técnica de fases y resultados
+
+### Fase 1 — prepare: Limpieza y validación
+- 2,111 → 2,087 filas tras eliminar duplicados.
+- Conservación de proporciones de clase.
+- Dataset validado sin sesgo ni pérdida de información.
+
+### Fase 2 — eda: Exploratory Data Analysis
+- Distribuciones, correlaciones y variables influyentes.
+- FAF (actividad física) y FAVC (comida calórica) fueron predictores relevantes.
+- Diferencias significativas por género y transporte (MTRANS).
+
+Ejemplo de salida:  
+![EDA Peso](reports/figures/eda/dist_Weight.png)
+
+### Fase 3 — preprocessing: Transformación
+- One-Hot Encoding de variables categóricas.
+- Escalado de numéricas.
+- División Train/Test (70/30) estratificada.
+- 24 variables finales, sin fuga de información.
+
+### Fase 4 — training: Modelado y ajuste
+
+| Modelo                 | F1-macro | ROC-AUC | Comentario                       |
+|------------------------|----------|---------|----------------------------------|
+| HistGradientBoosting   | **0.9673** | **0.972** | Mejor rendimiento y generalización |
+| Random Forest          | 0.952    | 0.962   | Estable y balanceado             |
+| SVC (RBF)              | 0.935    | 0.941   | Precisión alta, menor recall     |
+| Logistic Regression    | 0.918    | 0.924   | Baseline de referencia           |
+
+El modelo final seleccionado fue **HistGradientBoosting**, por su equilibrio entre precisión y recall.
+
+### Fase 5 — evaluation: Métricas finales
+- F1-macro superior a 0.96 en todas las clases.
+- Buen recall en clases minoritarias.
+- Matriz de confusión sin evidencia de sobreajuste.
+
+![Confusión](reports/confusion_matrix.png)
+
+### Fase 6 — model_plots: Curvas comparativas
+![ROC comparativa](reports/figures/models/roc_macro_compare.png)  
+![PR comparativa](reports/figures/models/pr_macro_compare.png)
+
+El modelo HistGradientBoosting domina tanto en AUC-ROC (0.972) como en AUC-PR (0.970).
+
+---
+
+## 6. Ejecución del pipeline completo
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # En Linux/Mac
+# .venv\Scripts\activate.bat   # En Windows
+pip install -r requirements.txt
+dvc repro
+```
+
+**Salida esperada:**
+- Generación automática de archivos en `reports/` y `models/`.
+- Métricas actualizadas en `reports/metrics.json`.
+- Reproducibilidad completa a través de `params.yaml`.
+
+---
+
+## 7. Resultados comparativos globales
+
+| Modelo               | F1-macro | Accuracy | ROC-AUC | PR-AUC | Observación    |
+|----------------------|----------|----------|---------|--------|----------------|
+| **HistGradientBoosting** | **0.9673** | **0.969** | **0.972** | **0.970** | Modelo final     |
+| Random Forest        | 0.952    | 0.958    | 0.962   | 0.957  | Buen recall     |
+| SVC (RBF)            | 0.935    | 0.942    | 0.941   | 0.940  | Alta precisión  |
+| Logistic Regression  | 0.918    | 0.921    | 0.924   | 0.926  | Baseline        |
+
+---
+## 8. Aplicación de Mejores Prácticas de Codificación en el Pipeline de Modelado
+
+La etapa de modelado fue rediseñada para incorporar las mejores prácticas de ingeniería de ML:
+
+Evitar Data Leakage:
+Las transformaciones se aplican dentro del Pipeline() y solo sobre los datos de entrenamiento.
+
+Codificación y escalado encapsulados:
+Se usaron OneHotEncoder y StandardScaler dentro del pipeline, preservando la consistencia entre entrenamiento y predicción.
+
+Selección automática de hiperparámetros:
+El script detecta el tamaño del grid y selecciona entre GridSearchCV o RandomizedSearchCV según el número de combinaciones posibles, optimizando tiempo y precisión.
+
+Cross-Validation Estratificada:
+Implementación de StratifiedKFold para mantener la distribución de clases en todas las divisiones.
+
+Métricas robustas:
+Se evaluó con F1-macro, accuracy, precision y recall, priorizando la equidad entre clases desbalanceadas.
+
+Reproducibilidad total:
+Se usaron random_state=42 y versionamiento en DVC para garantizar que cada ejecución pueda replicarse.
+
+Automatización de comparación de modelos:
+Todos los modelos generan un archivo final_model_comparison.csv donde se documentan los resultados de cada configuración.
+
+Interpretabilidad:
+Se añadieron análisis automáticos de feature importance y confusion matrix, guardando las figuras para revisión.
+
+---
+## 9. Roles del equipo y responsabilidades
+
+| Rol               | Nombre               | Responsabilidades principales                                                       |
+|-------------------|----------------------|-------------------------------------------------------------------------------------|
+| Data Engineer     | David Hernández C.   | Ingesta, pipelines DVC, versionado de datos, automatización y CI/CD.               |
+| Data Scientist    | Rafael López         | Modelado, feature engineering, tuning y análisis de resultados.                     |
+| Software Engineer | Juan Pablo L. S.     | Refactorización, estructura Cookiecutter, validaciones y documentación.            |
+| ML Engineer       | Osiris X. Saavedra   | Integración de modelos, pipelines de entrenamiento, métricas y artefactos.         |
+| SRE / DevOps      | Andrea X. Gómez      | Configuración de entorno, control de versiones, revisión y reproducibilidad.        |
+
+**Interacciones:**  
+Trabajo colaborativo vía GitHub PRs, issues y branches, con revisiones cruzadas entre roles.
+
+---
+
+## 10. Evidencias de colaboración (GitHub)
+
+- Commits totales: +70  
+- Pull Requests cerrados: 10  
+- Contribuidores activos: 5  
+
+Ejemplo de comando de auditoría:
+```bash
+git shortlog -sne --since="2025-10-01"
+```
+
+Capturas documentadas en el PDF:
+- PRs revisados y aprobados.
+- Pipeline DVC ejecutado (`dvc repro`).
+- Resultados de pruebas unitarias (`pytest -q`).
+- Workflow de CI/CD (en integración).
+
+---
+
+## 11. Métricas clave del proyecto
+
+| Tipo              | Métrica     | Valor     | Descripción                                  |
+|-------------------|-------------|-----------|----------------------------------------------|
+| Modelo final      | F1-macro    | **0.9673**| Métrica principal de desempeño               |
+| Reproducibilidad  | `dvc repro` | Exitosa   | Pipeline ejecutado sin errores               |
+| Balance de clases | —           | 7 niveles | Sin sesgo dominante                          |
+| Overfitting       | Δ F1 t–t    | < 0.01    | Sin sobreajuste                              |
+| Rendimiento       | Tiempo total| 45 s      | Pipeline completo                             |
+| Artefactos        | Generados   | 30+       | Datos, figuras, métricas y modelos           |
+
+---
+
+## 12. Conclusiones generales
+
+1. Pipeline totalmente reproducible y versionado con DVC.  
+2. HistGradientBoosting ofrece la mejor precisión y estabilidad.  
+3. Estructura modular y escalable, alineada al estándar Cookiecutter.  
+4. Equipo interdisciplinario con roles claramente definidos.  
+5. Trazabilidad completa de datos, métricas y modelos.
+
+---
+
+## 13. Pruebas Automatizadas (pytest)
+
+Para ejecutar todas las pruebas unitarias e integración del proyecto:
+
+```bash
+pytest -q
+```
+Este comando ejecuta:
+
+* Validación de preprocesamiento (tests/test_features.py)
+
+* Validación del pipeline de features (tests/test_pipeline.py)
+
+* Prueba de integración del pipeline offline (tests/test_training_integration.py)
+
+* Pruebas de la API de inferencia con FastAPI (obesity_estimator/api/test_api.py)
+
+Estas pruebas permiten validar:
+
+* Transformaciones de datos
+
+* Consistencia del pipeline
+
+* Carga y evaluación del modelo entrenado
+
+* Correcto funcionamiento del endpoint /predict
+
+Todas las pruebas fueron diseñadas bajo pytest y pueden integrarse fácilmente a CI/CD.
+
+## 14. Reproducibilidad del entorno y del modelo
+
+El proyecto fue diseñado para ser totalmente reproducible en cualquier ambiente (local, VM o contenedor), fijando semillas globales y versionando datos/modelos con DVC.
+
+
+14.1. Recrear el entorno en un equipo nuevo
+
+```bash
+# 1. Crear entorno virtual
+python -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+# .venv\Scripts\activate       # Windows
+
+# 2. Instalar dependencias
+pip install -r requirements.txt
+
+# 3. Obtener datos y artefactos versionados con DVC
+dvc pull
+
+# 4. (Opcional) Ejecutar el pipeline completo
+dvc repro
+
+# 5. Ejecutar todas las pruebas automatizadas
+pytest -q
+```
+
+Este flujo garantiza que cualquier persona pueda reconstruir el entorno original con:
+
+* Mismas librerías (via requirements.txt).
+
+* Mismos datos y artefactos (dvc pull).
+
+* Mismo pipeline (dvc repro).
+
+* Misma batería de pruebas (pytest).
+
+14.2. Verificación explícita de reproducibilidad
+
+Además de las semillas definidas en obesity_estimator.utils.set_global_seed y del uso de random_state en los modelos, se incluyeron pruebas específicas para demostrar reproducibilidad:
+
+```bash
+pytest -q tests/test_training_integration.py
+pytest -q tests/test_reproducibility.py
+```
+
+Estas pruebas verifican que:
+
+* El modelo entrenado se puede cargar y evaluar de forma consistente.
+
+* Dos evaluaciones consecutivas del mismo modelo, con los mismos datos, producen exactamente las mismas métricas.
+
+14.3. Reproducibilidad con Docker
+
+El proyecto incluye un Dockerfile que empaqueta código, dependencias y modelo:
+
+```bash
+# Construir la imagen
+docker build -t servicio-mna-mlops-sep2025-eq25:latest .
+
+# Ejecutar el contenedor
+docker run -p 8000:8000 servicio-mna-mlops-sep2025-eq25:latest
+```
+Probar la inferencia:
+```bash
+curl -X POST "http://127.0.0.1:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d @tests/payload_example.json
+```
+El uso de Docker asegura que:
+
+* El modelo se comporte igual en cualquier entorno.
+
+* No existan diferencias por sistema operativo o versión local de librerías.
+
+* Se facilite su integración en pipelines de CI/CD y despliegue.
+
+## 15. Referencias
+
+- Provost, F. & Fawcett, T. (2013). *Data Science for Business*.  
+- Chapman et al. (2000). *CRISP-DM 1.0: Step-by-Step Data Mining Guide*.  
+- Documentación de DVC: https://dvc.org/doc  
+- Scikit-Learn API Reference: https://scikit-learn.org/stable/user_guide.html  
+- MLflow Documentation: https://mlflow.org/docs/latest/index.html

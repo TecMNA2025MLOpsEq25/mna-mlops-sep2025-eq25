@@ -13,7 +13,9 @@ from sklearn.metrics import (
 )
 
 import mlflow
-
+import os
+import random
+import numpy as np
 
 # ---------------------------- #
 # --- FUNCIONES AUXILIARES --- #
@@ -47,3 +49,27 @@ def evaluate_model(y_true, y_pred, y_proba=None, average="macro"):
             metrics["roc_auc_ovr"] = None
 
     return metrics
+
+def set_global_seed(seed: int = 42):
+    """
+    Fija semillas globales para asegurar reproducibilidad completa.
+    Cubre: Python, random, numpy, PyTorch y TensorFlow (si están instalados).
+    """
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+    try:
+        import tensorflow as tf
+        tf.random.set_seed(seed)
+    except Exception:
+        pass
+
+    try:
+        import torch
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    except Exception:
+        pass

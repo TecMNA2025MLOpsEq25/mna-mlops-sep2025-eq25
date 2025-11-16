@@ -1,193 +1,138 @@
 # -*- coding: utf-8 -*-
 """
-predict.py
------------------
-Evalúa los modelos entrenados sobre el conjunto de prueba y genera:
-  - reports/evaluation_results.csv  (métricas por modelo)
-  - reports/confusion_matrix.csv    (del mejor por f1_macro)
-  - reports/confusion_matrix.png    (del mejor por f1_macro)
+obesity_estimator/modeling/predict.py (robusto + reportes extra)
+
+- Lee params.yaml
+- Limpia NaN en y y valida estratificación segura para recomponer el mismo split
+- Carga best_model.joblib
+- Guarda:
+    - reports/evaluation_results.csv   (métricas agregadas)
+    - reports/confusion_matrix.png
+    - reports/classification_report_test.csv  (por clase)
+    - reports/y_true_pred.csv          (auditoría)
 """
 
+import json
 from pathlib import Path
-import os
-import logging
-import warnings
+from typing import Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import yaml
+from matplotlib import pyplot as plt
 from sklearn.metrics import (
-    f1_score, accuracy_score, precision_score, recall_score,
-    confusion_matrix
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
-
-# Config del proyecto
-from obesity_estimator.config import TEST_FILEPATH, MODELS_DIR, REPORTS_DIR
-from obesity_estimator.utils import evaluate_model  # se usa si está disponible
-
-warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-TEST_PATH = Path(TEST_FILEPATH) if os.path.isabs(TEST_FILEPATH) else (REPO_ROOT / TEST_FILEPATH)
-MODELS_DIR = Path(MODELS_DIR) if os.path.isabs(MODELS_DIR) else (REPO_ROOT / MODELS_DIR)
-REPORTS_DIR = Path(REPORTS_DIR) if os.path.isabs(REPORTS_DIR) else (REPO_ROOT / REPORTS_DIR)
-
-EVAL_RESULTS_CSV = REPORTS_DIR / "evaluation_results.csv"
-CONF_MAT_CSV = REPORTS_DIR / "confusion_matrix.csv"
-CONF_MAT_PNG = REPORTS_DIR / "confusion_matrix.png"
-
-TARGET_CANDIDATES = ["NObeyesdad", "target", "label", "y"]
+from sklearn.model_selection import train_test_split
+import seaborn as sns
 
 
-def ensure_dirs():
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+def _ensure_dirs():
+    Path("reports").mkdir(parents=True, exist_ok=True)
 
 
-def split_Xy(df: pd.DataFrame):
-    for c in TARGET_CANDIDATES:
-        if c in df.columns:
-            return df.drop(columns=[c]), df[c].astype(str)
-    # fallback: última columna como target
-    return df.iloc[:, :-1], df.iloc[:, -1].astype(str)
+def _load_dataset(processed_path: str, target_col: str) -> Tuple[pd.DataFrame, pd.Series]:
+    df = pd.read_csv(processed_path)
+    if target_col not in df.columns:
+        raise ValueError(f"La columna objetivo '{target_col}' no está en {processed_path}")
+    y = df[target_col]
+    X = df.drop(columns=[target_col])
+    return X, y
 
 
-def find_models():
-    """
-    Busca modelos en 'models/'.
-    Prioridad:
-      1) best_model.joblib
-      2) *_best.pkl
-      3) *.joblib adicionales
-      4) *.pkl adicionales
-    Devuelve lista de tuplas (nombre, ruta).
-    """
-    candidates = []
-
-    # 1) Mejor modelo único
-    best_joblib = MODELS_DIR / "best_model.joblib"
-    if best_joblib.exists():
-        candidates.append(("best_model", best_joblib))
-
-    # 2) Modelos con sufijo _best.pkl (estilo original)
-    for p in sorted(MODELS_DIR.glob("*_best.pkl")):
-        name = p.name.replace("_best.pkl", "")
-        candidates.append((name, p))
-
-    # 3) Otros joblib (excluyendo el best_model.joblib ya agregado)
-    for p in sorted(MODELS_DIR.glob("*.joblib")):
-        if p.name != "best_model.joblib":
-            candidates.append((p.stem, p))
-
-    # 4) Otros pkl
-    for p in sorted(MODELS_DIR.glob("*.pkl")):
-        if not p.name.endswith("_best.pkl"):
-            candidates.append((p.stem, p))
-
-    # De-duplicar por nombre preservando prioridad
-    seen = set()
-    unique = []
-    for name, path in candidates:
-        if name not in seen:
-            unique.append((name, path))
-            seen.add(name)
-
-    if not unique:
-        raise FileNotFoundError(
-            "No se encontraron modelos en 'models/'. "
-            "Asegúrate de haber corrido la etapa 'training'."
-        )
-    return unique
+def _clean_xy(X: pd.DataFrame, y: pd.Series):
+    mask = ~y.isna()
+    if (~mask).any():
+        X = X.loc[mask].reset_index(drop=True)
+        y = y.loc[mask].reset_index(drop=True)
+    return X, y
 
 
-def compute_metrics(y_true, y_pred, y_proba=None):
-    """Calcula métricas básicas con defaults seguros."""
-    metrics = {
-        "f1_macro": float(f1_score(y_true, y_pred, average="macro")),
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "precision_macro": float(precision_score(y_true, y_pred, average="macro", zero_division=0)),
-        "recall_macro": float(recall_score(y_true, y_pred, average="macro", zero_division=0)),
-    }
-    return metrics
-
-
-def plot_confusion_matrix(y_true, y_pred, labels, out_png: Path):
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
-
-    plt.figure(figsize=(9, 7))
-    sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues")
-    plt.title("Matriz de Confusión - Mejor modelo (test)")
-    plt.ylabel("Real")
-    plt.xlabel("Predicho")
-    out_png.parent.mkdir(parents=True, exist_ok=True)
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=180, bbox_inches="tight")
-    plt.close()
-    return cm_df
+def _safe_stratify(y: pd.Series, want_stratify: bool):
+    if not want_stratify:
+        return None
+    vc = y.value_counts(dropna=False)
+    if len(vc) < 2 or (vc < 2).any():
+        return None
+    return y
 
 
 def main():
-    ensure_dirs()
+    with open("params.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
 
-    if not TEST_PATH.is_file():
-        raise FileNotFoundError(f"No se encontró el dataset de prueba: {TEST_PATH}")
+    processed_path = cfg["data"]["processed_path"]
+    target = cfg["target"]["name"]
+    split_cfg = cfg["split"]
 
-    test_df = pd.read_csv(TEST_PATH)
-    X_test, y_test = split_Xy(test_df)
-    labels_order = sorted(y_test.unique().tolist())
+    _ensure_dirs()
 
-    model_paths = find_models()
+    X, y = _load_dataset(processed_path, target)
+    X, y = _clean_xy(X, y)
+    strat = _safe_stratify(y, split_cfg.get("stratify", True))
 
-    results = []
-    per_model_preds = {}
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=split_cfg.get("test_size", 0.3),
+        random_state=split_cfg.get("random_state", 42),
+        stratify=strat,
+    )
 
-    logger.info("=== Evaluación de modelos ===")
-    for name, path in model_paths:
-        logger.info(f"Evaluando modelo: {name} ({path.name})")
-        model = joblib.load(path)
+    model = joblib.load("models/best_model.joblib")
 
-        y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test) if hasattr(model, "predict_proba") else None
+    y_pred = model.predict(X_test)
 
-        # Intentar usar evaluate_model si existe y devuelve las llaves esperadas
-        try:
-            metrics = evaluate_model(y_test, y_pred, y_proba)
-            # Garantizar f1_macro por si la implementación no lo devuelve
-            if "f1_macro" not in metrics:
-                metrics.update(compute_metrics(y_test, y_pred, y_proba))
-        except Exception:
-            # Fallback siempre válido
-            metrics = compute_metrics(y_test, y_pred, y_proba)
+    results = {
+        "f1_macro": float(f1_score(y_test, y_pred, average="macro")),
+        "accuracy": float(accuracy_score(y_test, y_pred)),
+        "precision_macro": float(precision_score(y_test, y_pred, average="macro", zero_division=0)),
+        "recall_macro": float(recall_score(y_test, y_pred, average="macro", zero_division=0)),
+    }
 
-        row = {"model": name, "path": path.name}
-        row.update(metrics)
-        results.append(row)
-        per_model_preds[name] = y_pred
+    # AUC OVR si hay probabilidades
+    try:
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)
+            if y_proba.ndim == 2 and y_proba.shape[1] > 1:
+                results["roc_auc_ovr"] = float(
+                    roc_auc_score(y_test, y_proba, multi_class="ovr")
+                )
+    except Exception:
+        pass
 
-    # DataFrame de resultados y orden por f1_macro (si existe)
-    results_df = pd.DataFrame(results)
-    if "f1_macro" in results_df.columns:
-        results_df = results_df.sort_values(by="f1_macro", ascending=False)
+    # 1) métricas agregadas
+    pd.DataFrame([results]).to_csv("reports/evaluation_results.csv", index=False)
 
-    EVAL_RESULTS_CSV.parent.mkdir(parents=True, exist_ok=True)
-    results_df.to_csv(EVAL_RESULTS_CSV, index=False)
-    logger.info(f"Métricas guardadas en: {EVAL_RESULTS_CSV}")
+    # 2) classification report por clase (test)
+    report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+    pd.DataFrame(report).transpose().to_csv("reports/classification_report_test.csv", index=True)
 
-    # Mejor modelo
-    best_row = results_df.iloc[0]
-    best_name = best_row["model"]
-    logger.info(f"Mejor modelo: {best_name} | f1_macro={best_row.get('f1_macro', float('nan')):.4f}")
+    # 3) auditoría y_true/y_pred
+    pd.DataFrame({"y_true": y_test, "y_pred": y_pred}).to_csv("reports/y_true_pred.csv", index=False)
 
-    # Matriz de confusión del mejor
-    y_pred_best = per_model_preds[best_name]
-    cm_df = plot_confusion_matrix(y_test, y_pred_best, labels_order, CONF_MAT_PNG)
-    cm_df.to_csv(CONF_MAT_CSV)
-    logger.info(f"Matriz de confusión guardada en: {CONF_MAT_PNG}")
-    logger.info("Evaluación finalizada exitosamente.")
+    # Matriz de confusión
+    labels = sorted(y_test.unique().tolist())
+    cm = confusion_matrix(y_test, y_pred, labels=labels)
+    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues")
+    plt.ylabel("Real")
+    plt.xlabel("Predicción")
+    plt.title("Matriz de confusión - Test")
+    plt.tight_layout()
+    plt.savefig("reports/confusion_matrix.png", dpi=150)
+    plt.close()
+
+    print("Evaluación finalizada.")
+    print("Resultados (test):", json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":
