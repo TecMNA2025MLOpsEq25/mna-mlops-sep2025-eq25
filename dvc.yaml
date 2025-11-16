@@ -80,3 +80,14 @@ stages:
       - reports/figures/models
       - reports/roc_auc_by_model.csv
       - reports/pr_auc_by_model.csv
+
+  data_drift:
+    cmd: PYTHONPATH=. python obesity_estimator/monitoring/data_drift.py
+    deps:
+      - data/processed/obesity_estimation_clean.csv
+      - data/drifted/df_drift.csv
+      - obesity_estimator/monitoring/data_drift.py
+      - data/interim/preprocessor.pkl
+    outs:
+      - reports/drift/drift_report.json
+      - reports/drift/drift_plot.png

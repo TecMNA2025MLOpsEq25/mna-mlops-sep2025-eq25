@@ -30,8 +30,8 @@ stages:
     outs:
     - path: reports/figures/eda
       hash: md5
-      md5: ca43b2bcc6981d408097a4cee73b08d8.dir
-      size: 1947503
+      md5: 9665d1997a5844a718008a1f8720973a.dir
+      size: 2206861
       nfiles: 30
   preprocessing:
     cmd: PYTHONPATH=. python obesity_estimator/features.py
@@ -51,8 +51,8 @@ stages:
       size: 227
     - path: data/interim/preprocessor.pkl
       hash: md5
-      md5: 17ecfe8c0e0ab4524bdbb8e370a30bc5
-      size: 4478
+      md5: 9411b7b483973c1236395f5bf95c3257
+      size: 5061
     - path: data/interim/test_prepared.csv
       hash: md5
       md5: 3eeaf0a35e61ddd9e03537486187d7dc
@@ -70,12 +70,12 @@ stages:
       size: 259884
     - path: obesity_estimator/modeling/search.py
       hash: md5
-      md5: a88db2554fe9538faa58b845b57236d8
-      size: 2637
+      md5: 74a59f7958ce8fce911e2c9dbdf09e9a
+      size: 3072
     - path: obesity_estimator/modeling/train_all.py
       hash: md5
-      md5: 1ace08e51e5f81c2cf80dd226e160639
-      size: 14938
+      md5: 6896e634822090f4b84d87c95dd16ab6
+      size: 15071
     - path: obesity_estimator/pipeline.py
       hash: md5
       md5: a44cc47da978261410c949a16cb5d315
@@ -209,7 +209,7 @@ stages:
     outs:
     - path: models/best_model.joblib
       hash: md5
-      md5: 396624baac54e078ae394b101bd69497
+      md5: 50cb9372f4dd36c0d811436df81cc35d
       size: 5042889
     - path: reports/classification_report.csv
       hash: md5
@@ -217,12 +217,12 @@ stages:
       size: 812
     - path: reports/final_model_comparison.csv
       hash: md5
-      md5: 40144a8167383b5d773c6a8be1f08a19
-      size: 914
+      md5: bf7ddd2606afc93e8c4df3c806fe5602
+      size: 915
     - path: reports/hpo
       hash: md5
-      md5: fc0153f6377dc9d05269a95809ec8152.dir
-      size: 93809
+      md5: a99f87a6c5b2677ab99f6d72ebd75402.dir
+      size: 93490
       nfiles: 4
     - path: reports/metrics.json
       hash: md5
@@ -237,7 +237,7 @@ stages:
       size: 259884
     - path: models/best_model.joblib
       hash: md5
-      md5: 396624baac54e078ae394b101bd69497
+      md5: 50cb9372f4dd36c0d811436df81cc35d
       size: 5042889
     - path: obesity_estimator/modeling/predict.py
       hash: md5
@@ -295,8 +295,8 @@ stages:
       size: 812
     - path: reports/confusion_matrix.png
       hash: md5
-      md5: 9527a212613c49f2e3bf6d9d3453446c
-      size: 68935
+      md5: 2bcfd8fda67ceb55541a061d7e47ff89
+      size: 78328
     - path: reports/evaluation_results.csv
       hash: md5
       md5: 3d5955cdfd72d45714b92c661970cdac
@@ -314,7 +314,7 @@ stages:
       size: 259884
     - path: models/best_model.joblib
       hash: md5
-      md5: 396624baac54e078ae394b101bd69497
+      md5: 50cb9372f4dd36c0d811436df81cc35d
       size: 5042889
     - path: obesity_estimator/modeling/plot_curves.py
       hash: md5
@@ -327,8 +327,8 @@ stages:
     outs:
     - path: reports/figures/models
       hash: md5
-      md5: 14c734cdcc6b86d2633c0a413bd6cc94.dir
-      size: 226454
+      md5: cdd76d3de8139222bdde7068fb3cedca.dir
+      size: 260124
       nfiles: 4
     - path: reports/pr_auc_by_model.csv
       hash: md5
@@ -338,3 +338,31 @@ stages:
       hash: md5
       md5: 73e6c58aa549032c974035899aae0946
       size: 83
+  data_drift:
+    cmd: PYTHONPATH=. python obesity_estimator/monitoring/data_drift.py
+    deps:
+    - path: data/drifted/df_drift.csv
+      hash: md5
+      md5: 87155fa6a1a363efb8b2b321c1369efa
+      size: 350390
+    - path: data/interim/preprocessor.pkl
+      hash: md5
+      md5: 9411b7b483973c1236395f5bf95c3257
+      size: 5061
+    - path: data/processed/obesity_estimation_clean.csv
+      hash: md5
+      md5: 05c7db71a32f3757337ad785ef3dbd2e
+      size: 259884
+    - path: obesity_estimator/monitoring/data_drift.py
+      hash: md5
+      md5: 6aeee77bc2aa03a63f80ca6184cd67fb
+      size: 3459
+    outs:
+    - path: reports/drift/drift_plot.png
+      hash: md5
+      md5: 1bacf0291ae5f17db0881fcafbbc2839
+      size: 25747
+    - path: reports/drift/drift_report.json
+      hash: md5
+      md5: ba564d7d433b4d93f36cc09565ee01ab
+      size: 2551
