@@ -546,7 +546,112 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 13. Referencias
+## 13. Pruebas Automatizadas (pytest)
+
+Para ejecutar todas las pruebas unitarias e integración del proyecto:
+
+```bash
+pytest -q
+```
+Este comando ejecuta:
+
+* Validación de preprocesamiento (tests/test_features.py)
+
+* Validación del pipeline de features (tests/test_pipeline.py)
+
+* Prueba de integración del pipeline offline (tests/test_training_integration.py)
+
+* Pruebas de la API de inferencia con FastAPI (obesity_estimator/api/test_api.py)
+
+Estas pruebas permiten validar:
+
+* Transformaciones de datos
+
+* Consistencia del pipeline
+
+* Carga y evaluación del modelo entrenado
+
+* Correcto funcionamiento del endpoint /predict
+
+Todas las pruebas fueron diseñadas bajo pytest y pueden integrarse fácilmente a CI/CD.
+
+## 14. Reproducibilidad del entorno y del modelo
+
+El proyecto fue diseñado para ser totalmente reproducible en cualquier ambiente (local, VM o contenedor), fijando semillas globales y versionando datos/modelos con DVC.
+
+
+14.1. Recrear el entorno en un equipo nuevo
+
+```bash
+# 1. Crear entorno virtual
+python -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+# .venv\Scripts\activate       # Windows
+
+# 2. Instalar dependencias
+pip install -r requirements.txt
+
+# 3. Obtener datos y artefactos versionados con DVC
+dvc pull
+
+# 4. (Opcional) Ejecutar el pipeline completo
+dvc repro
+
+# 5. Ejecutar todas las pruebas automatizadas
+pytest -q
+```
+
+Este flujo garantiza que cualquier persona pueda reconstruir el entorno original con:
+
+* Mismas librerías (via requirements.txt).
+
+* Mismos datos y artefactos (dvc pull).
+
+* Mismo pipeline (dvc repro).
+
+* Misma batería de pruebas (pytest).
+
+14.2. Verificación explícita de reproducibilidad
+
+Además de las semillas definidas en obesity_estimator.utils.set_global_seed y del uso de random_state en los modelos, se incluyeron pruebas específicas para demostrar reproducibilidad:
+
+```bash
+pytest -q tests/test_training_integration.py
+pytest -q tests/test_reproducibility.py
+```
+
+Estas pruebas verifican que:
+
+* El modelo entrenado se puede cargar y evaluar de forma consistente.
+
+* Dos evaluaciones consecutivas del mismo modelo, con los mismos datos, producen exactamente las mismas métricas.
+
+14.3. Reproducibilidad con Docker
+
+El proyecto incluye un Dockerfile que empaqueta código, dependencias y modelo:
+
+```bash
+# Construir la imagen
+docker build -t servicio-mna-mlops-sep2025-eq25:latest .
+
+# Ejecutar el contenedor
+docker run -p 8000:8000 servicio-mna-mlops-sep2025-eq25:latest
+```
+Probar la inferencia:
+```bash
+curl -X POST "http://127.0.0.1:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d @tests/payload_example.json
+```
+El uso de Docker asegura que:
+
+* El modelo se comporte igual en cualquier entorno.
+
+* No existan diferencias por sistema operativo o versión local de librerías.
+
+* Se facilite su integración en pipelines de CI/CD y despliegue.
+
+## 15. Referencias
 
 - Provost, F. & Fawcett, T. (2013). *Data Science for Business*.  
 - Chapman et al. (2000). *CRISP-DM 1.0: Step-by-Step Data Mining Guide*.  
