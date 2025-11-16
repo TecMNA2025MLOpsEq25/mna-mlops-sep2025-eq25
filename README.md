@@ -546,7 +546,56 @@ Capturas documentadas en el PDF:
 
 ---
 
-## 13. Referencias
+## 13. Pruebas Automatizadas (pytest)
+
+Para ejecutar todas las pruebas unitarias e integración del proyecto:
+
+```bash
+pytest -q
+```
+Este comando ejecuta:
+
+* Validación de preprocesamiento (tests/test_features.py)
+
+* Validación del pipeline de features (tests/test_pipeline.py)
+
+* Prueba de integración del pipeline offline (tests/test_training_integration.py)
+
+* Pruebas de la API de inferencia con FastAPI (obesity_estimator/api/test_api.py)
+
+Estas pruebas permiten validar:
+
+* Transformaciones de datos
+
+* Consistencia del pipeline
+
+* Carga y evaluación del modelo entrenado
+
+* Correcto funcionamiento del endpoint /predict
+
+Todas las pruebas fueron diseñadas bajo pytest y pueden integrarse fácilmente a CI/CD.
+
+## 14. Reproducibilidad
+
+# 1. Crear entorno virtual
+python -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+# .venv\Scripts\activate       # Windows
+
+# 2. Instalar dependencias
+pip install -r requirements.txt
+
+# 3. Obtener datos y artefactos versionados
+dvc pull
+
+# 4. (Opcional) Ejecutar el pipeline completo
+dvc repro
+
+# 5. Ejecutar todas las pruebas automatizadas
+pytest -q
+
+
+## 15. Referencias
 
 - Provost, F. & Fawcett, T. (2013). *Data Science for Business*.  
 - Chapman et al. (2000). *CRISP-DM 1.0: Step-by-Step Data Mining Guide*.  

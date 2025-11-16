@@ -10,6 +10,8 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 
+from obesity_estimator.config import RANDOM_STATE
+
 
 def _filter_params(estimator_cls: Type, params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -26,6 +28,7 @@ def build_estimator(model_cfg: Dict[str, Any]):
     """
     Construye el estimador base a partir de params.yaml:model,
     aplicando defaults por tipo y filtrando hiperparámetros inválidos.
+    Además, fija random_state cuando el estimador lo soporta.
     """
     mtype = model_cfg["type"]
     params = dict((model_cfg.get("params") or {}))
@@ -49,6 +52,12 @@ def build_estimator(model_cfg: Dict[str, Any]):
 
     else:
         raise ValueError(f"Modelo no soportado en search: '{mtype}'")
+
+    # Si el estimador acepta random_state y no se definió en params.yaml,
+    # lo fijamos al RANDOM_STATE global para reproducibilidad.
+    est_signature = inspect.signature(Est.__init__).parameters
+    if "random_state" in est_signature and "random_state" not in params:
+        params["random_state"] = RANDOM_STATE
 
     clean = _filter_params(Est, params)
     return Est(**clean)

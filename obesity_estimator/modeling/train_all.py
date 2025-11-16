@@ -27,6 +27,10 @@ from obesity_estimator.config import (
     EXPERIMENT_NAME as CFG_EXPERIMENT_NAME,
 )
 
+from obesity_estimator.utils import set_global_seed
+from obesity_estimator.config import RANDOM_STATE
+
+set_global_seed(RANDOM_STATE)
 
 # --------------------------
 # Utilidades locales
