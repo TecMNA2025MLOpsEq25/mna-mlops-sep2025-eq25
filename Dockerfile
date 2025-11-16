@@ -14,10 +14,19 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Instalamos dependencias del sistema y Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
         build-essential \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+        curl \
+        wget \
+        iputils-ping \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar dependencias Python
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ===========================
 # Etapa final (runtime)
@@ -26,7 +35,7 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Copia desde la etapa base las dependencias ya instaladas
+# Copia las dependencias ya instaladas en la etapa base
 COPY --from=base /usr/local/lib/python3.13 /usr/local/lib/python3.13
 COPY --from=base /usr/local/bin /usr/local/bin
 
