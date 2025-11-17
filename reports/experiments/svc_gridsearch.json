@@ -1,0 +1,15 @@
+{
+  "model": "SVC",
+  "best_params": {
+    "C": 1,
+    "gamma": "scale",
+    "kernel": "linear"
+  },
+  "cv_best_score_f1_macro": 0.9185977032834517,
+  "test_metrics": {
+    "accuracy": 0.9265175718849841,
+    "precision_macro": 0.9254243703751094,
+    "recall_macro": 0.923924695235363,
+    "f1_macro": 0.9231653152371718
+  }
+}
